@@ -119,7 +119,7 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
 
     scheduler = WarmupCosineSchedule(
         optimizer,
-        num_warmup_steps= max(3, int(0.1 * num_epochs)),
+        warmup_steps= max(3, int(0.1 * num_epochs)),
         t_total=num_epochs
     )
 

@@ -109,7 +109,7 @@ def get_2D_data(train_cases, val_cases, data_dir):
     data_list = [{"image": img, "label": lbl, "case_id": [part for part in Path(img).parts if part.startswith("case_")][0]} for img, lbl in zip(images, labels)]
 
     train_list = [d for d in data_list if d["case_id"] in train_cases]
-    train_list = filter_background_cases(train_list, fraction_to_keep=0.05) # Filter out background-only cases
+    train_list = filter_background_cases(train_list, fraction_to_keep=0.01) # Filter out background-only cases
 
 
     val_list = [d for d in data_list if d["case_id"] in val_cases]
@@ -130,7 +130,7 @@ def get_2D_datasets(train_list, val_list, aug_transform, no_aug_transform, batch
     Returns:
         tuple: Training and validation DataLoaders, and their corresponding datasets.
     """
-    tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=10)  # Upsample tumor cases
+    tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=3)  # Upsample tumor cases
 
     # augment tumor data, but not other data
     tumor_ds = Dataset(data=tumor_list, transform=aug_transform)
