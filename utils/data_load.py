@@ -126,7 +126,7 @@ def get_2D_datasets(train_list, val_list, aug_transform, no_aug_transform, batch
         tuple: Training and validation DataLoaders, and their corresponding datasets.
     """
 
-    train_list = filter_background_cases(train_list) # Filter out background-only cases
+    train_list = filter_background_cases(train_list, fraction_to_keep=0.05) # Filter out background-only cases
     tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=10)  # Upsample tumor cases
 
     # augment tumor data, but not other data
