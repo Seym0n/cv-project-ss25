@@ -60,6 +60,7 @@ def filter_background_cases(data_list, fraction_to_keep):
     # Randomly keep 10% of background samples
     k = int(len(background_samples) * fraction_to_keep)
     kept_background = random.sample(background_samples, k=k)
+    print(f"   Kept {len(kept_background)} background-only slices out of {len(background_samples)}", flush=True)
 
     filtered_data.extend(kept_background)
     return filtered_data
@@ -83,6 +84,8 @@ def upsample_tumor_cases(data_list, n_duplicates):
                 tumor_data.append(d)
         else:
             other_data.append(d)
+    
+    print(f"   Upsampled  to {len(tumor_data)} tumor slices, originally {len(tumor_data) // n_duplicates} slices with tumor", flush=True)
     return tumor_data, other_data
 
 
@@ -106,6 +109,8 @@ def get_2D_data(train_cases, val_cases, data_dir):
     data_list = [{"image": img, "label": lbl, "case_id": [part for part in Path(img).parts if part.startswith("case_")][0]} for img, lbl in zip(images, labels)]
 
     train_list = [d for d in data_list if d["case_id"] in train_cases]
+    train_list = filter_background_cases(train_list, fraction_to_keep=0.05) # Filter out background-only cases
+
 
     val_list = [d for d in data_list if d["case_id"] in val_cases]
     return train_list, val_list
@@ -125,8 +130,6 @@ def get_2D_datasets(train_list, val_list, aug_transform, no_aug_transform, batch
     Returns:
         tuple: Training and validation DataLoaders, and their corresponding datasets.
     """
-
-    train_list = filter_background_cases(train_list, fraction_to_keep=0.05) # Filter out background-only cases
     tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=10)  # Upsample tumor cases
 
     # augment tumor data, but not other data
