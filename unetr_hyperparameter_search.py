@@ -84,42 +84,48 @@ if __name__ == "__main__":
         f.write("Loss Function, Weights, Learning Rate, Train Loss, Val Loss, Kidney Dice, Tumor Dice\n")
 
     for loss_fn, weight, LR in zip(loss_functions, weights, learning_rates):
-        weight_str = "_".join([f"{w:.2f}" for w in weight])
-        print(f"Training with {loss_fn.__name__} and LR={LR} and weights={weight_str}", flush=True)
+        try:
+            weight_str = "_".join([f"{w:.2f}" for w in weight])
+            print(f"Training with {loss_fn.__name__} and LR={LR} and weights={weight_str}", flush=True)
 
-        # model setup
-        model = UNETR(  # patch size fixed to 16x16 for 2D
-            in_channels=1,
-            out_channels=3, # background, kidney, tumor
-            img_size=512,
-            feature_size=32,
-            norm_name='batch',
-            spatial_dims=2).to(device)
+            # model setup
+            model = UNETR(  # patch size fixed to 16x16 for 2D
+                in_channels=1,
+                out_channels=3, # background, kidney, tumor
+                img_size=512,
+                feature_size=32,
+                norm_name='batch',
+                spatial_dims=2).to(device)
 
-        loss_fn_instance = loss_fn(
-                to_onehot_y=True,  # convert target to one-hot format
-                softmax=True,       # apply softmax to model outputs
-                weight=torch.tensor(weight)  # Adjust weights for background, kidney, tumor
-            ).to(device)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
+            loss_fn_instance = loss_fn(
+                    to_onehot_y=True,  # convert target to one-hot format
+                    softmax=True,       # apply softmax to model outputs
+                    weight=torch.tensor(weight)  # Adjust weights for background, kidney, tumor
+                ).to(device)
+            optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
 
-        weight_str = "_".join([f"{w:.2f}" for w in weight])
-        save_path = f"best_{loss_fn.__name__}_{weight_str}_{LR}.pth"
-        train_losses, val_losses, kidney_dices, tumor_dices = train_kits19_model(
-            model, loss_fn_instance, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path=save_path
-        )
-        print(f"   Finished training with {loss_fn.__name__} and LR={LR} and weights={weight_str}", flush=True)
+            weight_str = "_".join([f"{w:.2f}" for w in weight])
+            save_path = f"best_{loss_fn.__name__}_{weight_str}_{LR}.pth"
+            train_losses, val_losses, kidney_dices, tumor_dices = train_kits19_model(
+                model, loss_fn_instance, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path=save_path
+            )
+            print(f"   Finished training with {loss_fn.__name__} and LR={LR} and weights={weight_str}", flush=True)
 
-        # Save results
-        best_tumor_index = tumor_dices.index(max(tumor_dices))
-        best_tumor_dice = tumor_dices[best_tumor_index]
-        best_val_loss = val_losses[best_tumor_index]
-        best_kidney_dice = kidney_dices[best_tumor_index]
-        best_train_loss = train_losses[best_tumor_index]
+            # Save results
+            best_tumor_index = tumor_dices.index(max(tumor_dices))
+            best_tumor_dice = tumor_dices[best_tumor_index]
+            best_val_loss = val_losses[best_tumor_index]
+            best_kidney_dice = kidney_dices[best_tumor_index]
+            best_train_loss = train_losses[best_tumor_index]
 
-        with open(results_file, "a") as f:
-            f.write(f"{loss_fn.__name__}, {weight_str}, {LR}, {best_train_loss:.4f}, {best_val_loss:.4f}, {best_kidney_dice:.4f}, {best_tumor_dice:.4f}\n")
+            with open(results_file, "a") as f:
+                f.write(f"{loss_fn.__name__}, {weight_str}, {LR}, {best_train_loss:.4f}, {best_val_loss:.4f}, {best_kidney_dice:.4f}, {best_tumor_dice:.4f}\n")
 
-        # clear memory
-        del model, loss_fn_instance, optimizer
-        torch.cuda.empty_cache()
+            # clear memory
+            del model, loss_fn_instance, optimizer
+            torch.cuda.empty_cache()
+        except Exception as e:
+            print(f"Error during training with {loss_fn.__name__} and LR={LR} and weights={weight_str}: {e}", flush=True)
+            with open(results_file, "a") as f:
+                f.write(f"{loss_fn.__name__}, {weight_str}, {LR}, ERROR\n")
+            continue
