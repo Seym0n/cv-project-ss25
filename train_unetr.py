@@ -48,7 +48,6 @@ if __name__ == "__main__":
     # Get datasets and loaders
     train_loader, val_loader, _, _ = get_2D_datasets(train_list, val_list, train_transforms, val_transforms, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
 
-
     # model setup
     model = UNETR(  # patch size fixed to 16x16 for 2D
         in_channels=1,
@@ -61,10 +60,10 @@ if __name__ == "__main__":
     loss_fn = DiceFocalLoss(
             to_onehot_y=True,  # convert target to one-hot format
             softmax=True,       # apply softmax to model outputs
-            focal_weights=[0.3, 1, 3]  # Adjust weights for background, kidney, tumor
+            weight=[0.3, 1, 3]  # Adjust weights for background, kidney, tumor
         ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
 
     train_losses, val_losses, kidney_dices, tumor_dices = train_kits19_model(
-        model, loss_fn, optimizer, train_loader, val_loader, device, NUM_EPOCHS
+        model, loss_fn, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path="best0107.pth"
     )
