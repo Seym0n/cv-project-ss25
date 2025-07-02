@@ -3,9 +3,10 @@ import numpy as np
 from accelerate import Accelerator
 from monai.metrics import DiceMetric
 from monai.optimizers import WarmupCosineSchedule
+from monai.inferers import sliding_window_inference
 
 
-def validate(model, val_loader, loss_function, dice_metric, device):
+def validate(model, val_loader, loss_function, dice_metric, device, type="2d-vit"):
     """
     Fixed validation function with correct DICE calculation for KiTS19.
     Key fixes:
@@ -25,6 +26,20 @@ def validate(model, val_loader, loss_function, dice_metric, device):
         for batch_idx, batch_data in enumerate(val_loader):
             inputs = batch_data["image"].to(device)
             labels = batch_data["label"].to(device)
+
+            if type == "2d-vit":
+                outputs = model(inputs)
+
+            if type == "3d-unet":
+                roi_size = (80, 160, 160)
+                sw_batch_size = 1
+                outputs = sliding_window_inference(
+                    inputs=inputs,
+                    roi_size=roi_size,
+                    sw_batch_size=sw_batch_size,
+                    predictor=model,
+                    overlap=0.25
+                )
 
             outputs = model(inputs)
 
@@ -102,10 +117,20 @@ def train_epoch(model, train_loader, optimizer, loss_fn, device, accelerator):
     return epoch_loss / batch_count
 
 
-def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth"):
+def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth", type="2d-vit"):
     """
     Complete training loop following KiTS19 winning methodology.
     Fixed version with proper variable names.
+    Args:
+        model: The model to train.
+        loss_fn: Loss function to use.
+        optimizer: Optimizer for training.
+        train_loader: DataLoader for training data.
+        val_loader: DataLoader for validation data.
+        device: Device to run the training on (CPU or GPU).
+        num_epochs: Number of epochs to train.
+        save_path: Path to save the best model.
+        type: Type of model (e.g., "2d-vit", "3d-unet").
     """
 
     accelerator = Accelerator(mixed_precision="fp16") # Use mixed precision for faster training
@@ -145,7 +170,7 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
 
         # Validation
         val_loss, kidney_dice, tumor_dice = validate(
-            model, val_loader, loss_fn, dice_metric, device
+            model, val_loader, loss_fn, dice_metric, device, type=type
         )
         val_losses.append(val_loss)
         kidney_dices.append(kidney_dice)

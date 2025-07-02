@@ -63,7 +63,7 @@ if __name__ == "__main__":
     loss_fn = DiceFocalLoss(
             to_onehot_y=True,  # convert target to one-hot format
             softmax=True,       # apply softmax to model outputs
-            focal_weights=[0.3, 1, 3]  # Adjust weights for background, kidney, tumor
+            weight=[0.3, 1, 3]  # Adjust weights for background, kidney, tumor
         ).to(device)
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
@@ -77,5 +77,6 @@ if __name__ == "__main__":
         val_loader=val_loader,
         device=device,
         num_epochs=NUM_EPOCHS,
-        save_path="kits19-model-3d-unet.pth"
+        save_path="kits19-model-3d-unet.pth",
+        type="3d-unet",
     )
