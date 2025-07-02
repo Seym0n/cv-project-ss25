@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"
     BATCH_SIZE = 8
-    NUM_EPOCHS = 100
+    NUM_EPOCHS = 20
     NUM_WORKERS = 4
 
     # load data
