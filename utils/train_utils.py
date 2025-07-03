@@ -198,7 +198,7 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
         print(f"   Kidney DICE: {kidney_dice:.4f}", flush=True)
         print(f"   Tumor DICE: {tumor_dice:.4f}", flush=True)
         # Print current learning rate
-        #print(f"   Learning Rate: {optimizer.param_groups[0]['lr']:.6f}", flush=True)
+        print(f"   Learning Rate: {optimizer.param_groups[0]['lr']:.6f}", flush=True)
 
         # Save best model based on tumor dice (as per challenge rules)
         if tumor_dice > best_tumor_dice:
