@@ -84,6 +84,7 @@ def get_3D_transforms():
     """
     Preprocessing pipeline for KiTS19 with augmentation and validation
     """
+    print("Version 2 of 3D transforms")
     # Define possible patch sizes for multi-scale training
     patch_sizes = [(64, 128, 128), (80, 160, 160), (96, 192, 192)]
     
@@ -134,25 +135,16 @@ def get_3D_transforms():
             mode="constant"
         ),
         
-        # 8. Tumor-biased patch sampling with random cropping (Step 2)
-        OneOf([
-            # Tumor-biased sampling
-            RandCropByLabelClassesd(
-                keys=["image", "label"],
-                label_key="label",
-                spatial_size=(80, 160, 160),  # Default size
-                ratios=[1, 2, 7],  # Bias toward tumor (class 2)
-                num_classes=3,
-                num_samples=1,
-                warn=False  # Suppress warnings for empty classes
-            ),
-            # Random cropping as fallback
-            RandSpatialCropd(
-                keys=["image", "label"],
-                roi_size=(80, 160, 160),
-                random_size=False
-            )
-        ], weights=[0.7, 0.3]),  # 70% tumor-biased, 30% random
+        # Direct Tumor-biased sampling
+        RandCropByLabelClassesd(
+            keys=["image", "label"],
+            label_key="label",
+            spatial_size=(80, 160, 160),  # Default size
+            ratios=[0, 3, 7],  # No background, kidney=30%, tumor=70%
+            num_classes=3,
+            num_samples=1,
+            warn=False
+        ),
         
         # 9. Random patch size variation (Step 3)
         OneOf([
