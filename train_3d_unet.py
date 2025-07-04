@@ -28,6 +28,7 @@ if __name__ == "__main__":
     BATCH_SIZE = 1  
     NUM_EPOCHS = 200
     NUM_WORKERS = 4
+    LR=3e-4  # Learning rate for AdamW optimizer
 
     # load data
     all_cases = get_data_list(DATA_ROOT)
