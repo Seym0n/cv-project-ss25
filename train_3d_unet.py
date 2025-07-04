@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"  # Update this path
     BATCH_SIZE = 1  
-    NUM_EPOCHS = 200
+    NUM_EPOCHS = 600
     NUM_WORKERS = 4
     LR=3e-4  # Learning rate for AdamW optimizer
 
