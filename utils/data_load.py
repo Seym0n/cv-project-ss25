@@ -7,8 +7,7 @@ from pathlib import Path
 from monai.data import Dataset, DataLoader
 from torch.utils.data import ConcatDataset
 
-
-
+import nibabel as nib
 
 def get_data_list(data_root):
     """
@@ -114,6 +113,45 @@ def get_2D_data(train_cases, val_cases, data_dir):
 
     val_list = [d for d in data_list if d["case_id"] in val_cases]
     return train_list, val_list
+
+
+def get_case_dataset(case, data_dir, transforms, num_workers):
+
+    images = sorted(glob(f"{data_dir}/{case}/images/*.npy"))
+    labels = sorted(glob(f"{data_dir}/{case}/labels/*.npy"))
+
+    data_list = [{"image": img, "label": lbl, "case_id": case} for img, lbl in zip(images, labels)]
+
+    val_ds = Dataset(data=data_list, transform=transforms)
+    val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
+
+
+    imaging_path = os.path.join(data_dir, case, "imaging.nii.gz")
+    segmentation_path = os.path.join(data_dir, case, "segmentation.nii.gz")
+
+    # load nifti files
+    image = nib.load(imaging_path)
+    segmentation = nib.load(segmentation_path)
+
+    return val_loader, image, segmentation
+
+
+def get_test_case(case, data_dir, transforms, num_workers):
+    
+    imaging_path = os.path.join(data_dir, case, "imaging.nii.gz")
+    image_nifti = nib.load(imaging_path)
+    image_volume = image_nifti.get_fdata(dtype=np.float32)  # (H, W, D)
+
+    # Create list of dicts, one per slice
+    data_list = [
+        {"image": image_volume[i, :, :], "label": np.zeros_like(image_volume[i, :, :]), "case_id": case}
+        for i in range(image_volume.shape[0])
+    ]
+
+    test_ds = Dataset(data=data_list, transform=transforms)
+    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=num_workers)
+
+    return test_loader, image_nifti
 
 
 def get_2D_datasets(train_list, val_list, aug_transform, no_aug_transform, batch_size=4, num_workers=4):
