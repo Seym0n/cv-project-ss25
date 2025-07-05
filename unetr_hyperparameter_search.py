@@ -1,3 +1,4 @@
+import itertools
 import torch
 import monai
 from monai.utils import set_determinism
@@ -23,7 +24,7 @@ if __name__ == "__main__":
 
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"
     BATCH_SIZE = 8
-    NUM_EPOCHS = 20
+    NUM_EPOCHS = 25
     NUM_WORKERS = 4
 
     # load data
@@ -55,10 +56,10 @@ if __name__ == "__main__":
     for data in train_dataset:
         image = data["image"]
         label = data["label"]
-        
+
         background_pixel_counts += (label == 0).sum().item()
-        tumor_pixel_counts += (label == 1).sum().item()
-        kidney_pixel_counts += (label == 2).sum().item()
+        tumor_pixel_counts += (label == 2).sum().item()
+        kidney_pixel_counts += (label == 1).sum().item()
 
     total_pixels = background_pixel_counts + tumor_pixel_counts + kidney_pixel_counts
     background_proportion = background_pixel_counts / total_pixels
@@ -67,13 +68,13 @@ if __name__ == "__main__":
     print(f"   Background proportion: {background_proportion:.4f}", flush=True)
     print(f"   Tumor proportion: {tumor_proportion:.4f}", flush=True)
     print(f"   Kidney proportion: {kidney_proportion:.4f}", flush=True)
-    
+
 
     loss_functions = [DiceFocalLoss, DiceCELoss]
-    weights = [[0.3, 1, 3], [background_proportion**-1, kidney_proportion**-1, tumor_proportion**-1]]
-    learning_rates= [1e-4, 3e-4, 1e-3]
+    weights = [[0.3, 1, 5], [background_proportion**-1, kidney_proportion**-1, tumor_proportion**-1]]
+    learning_rates= [1e-5, 3e-5, 1e-4]
 
-    results_file = "unetr_hyperparameter_search_results.txt"
+    results_file = "unetr_hyperparameter_search_results3.txt"
     with open(results_file, "w") as f:
         f.write(f"Hyperparameter Search Results for UNETR 2D Training\n")
         f.write(f"Data Root: {DATA_ROOT}\n")
@@ -83,7 +84,7 @@ if __name__ == "__main__":
         f.write(f"Device: {device}\n\n\n")
         f.write("Loss Function, Weights, Learning Rate, Train Loss, Val Loss, Kidney Dice, Tumor Dice\n")
 
-    for loss_fn, weight, LR in zip(loss_functions, weights, learning_rates):
+    for loss_fn, weight, LR in itertools.product(loss_functions, weights, learning_rates):
         try:
             weight_str = "_".join([f"{w:.2f}" for w in weight])
             print(f"Training with {loss_fn.__name__} and LR={LR} and weights={weight_str}", flush=True)
@@ -104,7 +105,7 @@ if __name__ == "__main__":
                 ).to(device)
             optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
 
-            weight_str = "_".join([f"{w:.2f}" for w in weight])
+            weight_str = "-".join([f"{w:.2f}" for w in weight])
             save_path = f"best_{loss_fn.__name__}_{weight_str}_{LR}.pth"
             train_losses, val_losses, kidney_dices, tumor_dices = train_kits19_model(
                 model, loss_fn_instance, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path=save_path
