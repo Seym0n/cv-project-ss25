@@ -43,10 +43,10 @@ if __name__ == "__main__":
     print(f"   Training on {len(train_list)} cases, validating on {len(val_list)} cases", flush=True)
 
     # Get transforms
-    train_transforms, val_transforms = get_2D_transforms()
+    augment_transforms, no_aug_transforms, val_transforms = get_2D_transforms()
 
     # Get datasets and loaders
-    train_loader, val_loader, train_dataset, _ = get_2D_datasets(train_list, val_list, train_transforms, val_transforms, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
+    train_loader, val_loader, train_dataset, _ = get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms, val_transforms, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
 
     # find class proportions
     background_pixel_counts = 0
@@ -94,7 +94,7 @@ if __name__ == "__main__":
             model = UNETR(  # patch size fixed to 16x16 for 2D
                 in_channels=1,
                 out_channels=3, # background, kidney, tumor
-                img_size=512,
+                img_size=256,
                 feature_size=feat_size,
                 norm_name='batch',
                 spatial_dims=2).to(device)
