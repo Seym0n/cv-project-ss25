@@ -37,26 +37,36 @@ def get_2D_transforms():
 
     augment_transforms = Compose([
         LoadNumpy(keys=["image", "label"]),
-        # case_00160 has different image size, so we resize all images to a common size
-        ResizeD(keys=["image", "label"], spatial_size=(512, 512), mode=["bilinear", "nearest"]),
+        
+        ResizeD(
+            keys=["image", "label"],
+            spatial_size=(512, 512),
+            mode=["bilinear", "nearest"]
+        ),
+        
         ScaleIntensityRanged(
             keys=["image"],
-            a_min=-200, a_max=500,  # Clamp CT values
+            a_min=-200, a_max=500,
             b_min=-1.0, b_max=1.0,
             clip=True,
         ),
 
-        # Spatial augmentations
-        RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),  # vertical flip
-        RandRotate90d(keys=["image", "label"], prob=0.5, max_k=3),
+        RandCropByLabelClassesd(
+            keys=["image", "label"],
+            label_key="label",
+            spatial_size=(256, 256),
+            num_classes=3,
+            num_samples=4,
+            ratios=[0.05, 0.25, 0.70],
+        ),
 
-        # Intensity augmentations (image only)
+        RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),
+        RandRotate90d(keys=["image", "label"], prob=0.5, max_k=3),
         RandScaleIntensityd(keys=["image"], factors=0.1, prob=0.5),
         RandAdjustContrastd(keys=["image"], prob=0.5),
         RandGaussianNoised(keys=["image"], prob=0.5, std=0.01),
         RandShiftIntensityd(keys=["image"], offsets=0.1, prob=0.5),
 
-        # Convert to tensor
         EnsureTyped(keys=["image", "label"], dtype=torch.float32),
         ToTensord(keys=["image", "label"]),
     ])
