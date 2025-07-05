@@ -168,7 +168,7 @@ def get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms,
     Returns:
         tuple: Training and validation DataLoaders, and their corresponding datasets.
     """
-    tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=3)  # Upsample tumor cases
+    tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=2)  # Upsample tumor cases
 
     # augment tumor data, but not other data
     tumor_ds = Dataset(data=tumor_list, transform=augment_transforms)

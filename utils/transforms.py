@@ -56,7 +56,7 @@ def get_2D_transforms():
             label_key="label",
             spatial_size=(256, 256),
             num_classes=3,
-            num_samples=2,
+            num_samples=4,
             ratios=[0.05, 0.25, 0.70],
             allow_missing_keys=True,
             warn=False
@@ -75,13 +75,24 @@ def get_2D_transforms():
 
     no_aug_transforms = Compose([
         LoadNumpy(keys=["image", "label"]),
-        # case_00160 has different image size, so we resize all images to a common size
-        ResizeD(keys=["image", "label"], spatial_size=(256, 256), mode=["bilinear", "nearest"]),
+        # case_00160 has different image size, so we resize all images to a common size (cropped size)
+        ResizeD(keys=["image", "label"], spatial_size=(512, 512), mode=["bilinear", "nearest"]),
         ScaleIntensityRanged(
             keys=["image"],
             a_min=-200, a_max=500,  # Clamp CT values
             b_min=-1.0, b_max=1.0,
             clip=True,
+        ),
+
+        RandCropByLabelClassesd(
+            keys=["image", "label"],
+            label_key="label",
+            spatial_size=(256, 256),
+            num_classes=3,
+            num_samples=2,
+            ratios=[0.05, 0.25, 0.70],
+            allow_missing_keys=True,
+            warn=False
         ),
 
         # Convert to tensor
@@ -92,7 +103,7 @@ def get_2D_transforms():
     val_transforms = Compose([
         LoadNumpy(keys=["image", "label"]),
         # case_00160 has different image size, so we resize all images to a common size
-        ResizeD(keys=["image", "label"], spatial_size=(256, 256), mode=["bilinear", "nearest"]),
+        ResizeD(keys=["image", "label"], spatial_size=(512, 512), mode=["bilinear", "nearest"]),
         ScaleIntensityRanged(
             keys=["image"],
             a_min=-200, a_max=500,  # Clamp CT values
