@@ -73,6 +73,7 @@ if __name__ == "__main__":
     loss_functions = [DiceFocalLoss, DiceCELoss]
     weights = [[0.3, 1, 5], [background_proportion**-1, kidney_proportion**-1, tumor_proportion**-1]]
     learning_rates= [3e-5, 1e-4]
+    feat_sizes = [16, 32]
 
     results_file = "unetr_hyperparameter_search_results3.txt"
     with open(results_file, "w") as f:
@@ -84,7 +85,7 @@ if __name__ == "__main__":
         f.write(f"Device: {device}\n\n\n")
         f.write("Loss Function, Weights, Learning Rate, Train Loss, Val Loss, Kidney Dice, Tumor Dice\n")
 
-    for loss_fn, weight, LR in itertools.product(loss_functions, weights, learning_rates):
+    for loss_fn, weight, LR, feat_size in itertools.product(loss_functions, weights, learning_rates, feat_sizes):
         try:
             weight_str = "_".join([f"{w:.2f}" for w in weight])
             print(f"Training with {loss_fn.__name__} and LR={LR} and weights={weight_str}", flush=True)
@@ -94,7 +95,7 @@ if __name__ == "__main__":
                 in_channels=1,
                 out_channels=3, # background, kidney, tumor
                 img_size=512,
-                feature_size=32,
+                feature_size=feat_size,
                 norm_name='batch',
                 spatial_dims=2).to(device)
 
