@@ -4,7 +4,7 @@ from skimage import measure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import nibabel as nib
 
-def plot_segmentation_3d(segmentation):
+def plot_segmentation_3d(segmentation, prediction=None):
     """
     Plots the 3D segmentation
 
@@ -33,6 +33,22 @@ def plot_segmentation_3d(segmentation):
             mesh.set_facecolor(color)
             ax.add_collection3d(mesh)
     
+    if prediction:
+        format = {
+            1: ('lightblue', 0.5),  # kidney
+            2: ('orange', 1)         # tumor
+        }
+
+        for class_id, (color, alpha) in format.items():
+            mask = (volume == class_id)
+            if np.any(mask):  # only process if the class is present
+                verts, faces, _, _ = measure.marching_cubes(mask, level=0, spacing=spacing)
+
+                mesh = Poly3DCollection(verts[faces], alpha=alpha)
+                mesh.set_facecolor(color)
+                ax.add_collection3d(mesh)
+        
+    
     ax.set_xlabel("X (sagittal)")
     ax.set_ylabel("Y (coronal)")
     ax.set_zlabel("Z (axial slices)")
@@ -41,3 +57,8 @@ def plot_segmentation_3d(segmentation):
     ax.view_init(elev=15, azim=120)
     plt.tight_layout()
     plt.show()
+
+
+    def plot_test_slices(test_data, output_path=None):
+
+        fig, ax = plt.subplots()
