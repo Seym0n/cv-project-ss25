@@ -4,7 +4,7 @@ import numpy as np
 import random
 from pathlib import Path
 
-from monai.data import Dataset, DataLoader
+from monai.data import Dataset, DataLoader, pad_list_data_collate
 from torch.utils.data import ConcatDataset
 
 import nibabel as nib
@@ -183,3 +183,44 @@ def get_2D_datasets(train_list, val_list, aug_transform, no_aug_transform, batch
 
     return train_loader, val_loader, train_ds, val_ds
 
+
+def get_3D_dataset(train_data, val_data, train_transforms, val_transforms, BATCH_SIZE=1, NUM_WORKERS=4):
+    """
+    Create training and validation datasets and loaders for 3D data.
+    Args:
+        train_data (list): List of training data dictionaries.
+        val_data (list): List of validation data dictionaries
+        train_transforms (callable): Transform for training
+        val_transforms (callable): Transform for validation
+        BATCH_SIZE (int): Batch size for DataLoader.
+        NUM_WORKERS (int): Number of workers for DataLoader.
+    Returns:
+        tuple: Training and validation DataLoaders.
+    """
+
+    # Create 3D datasets
+    train_dataset = Dataset(data=train_data, transform=train_transforms)
+    val_dataset = Dataset(data=val_data, transform=val_transforms)
+
+    # Create DataLoaders with collate function to handle variable sizes
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=NUM_WORKERS,
+        pin_memory=True,
+        collate_fn=pad_list_data_collate,  # handles size mismatches
+        persistent_workers=True if NUM_WORKERS > 0 else False
+    )
+        
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=1,  
+        shuffle=False,
+        num_workers=max(1, NUM_WORKERS // 2),
+        collate_fn=pad_list_data_collate,
+        persistent_workers=True if NUM_WORKERS > 0 else False
+    )
+
+    return train_loader, val_loader

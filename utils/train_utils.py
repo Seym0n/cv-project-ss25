@@ -3,9 +3,10 @@ import numpy as np
 from accelerate import Accelerator
 from monai.metrics import DiceMetric
 from monai.optimizers import WarmupCosineSchedule
+from monai.inferers import sliding_window_inference
 
 
-def validate(model, val_loader, loss_function, dice_metric, device):
+def validate(model, val_loader, loss_function, dice_metric, device, type="2d-vit"):
     """
     Fixed validation function with correct DICE calculation for KiTS19.
     Key fixes:
@@ -21,58 +22,88 @@ def validate(model, val_loader, loss_function, dice_metric, device):
     kidney_dice_scores = []
     tumor_dice_scores = []
 
+    cases_with_tumors = 0
+    cases_with_false_positive_tumors = 0
+
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(val_loader):
             inputs = batch_data["image"].to(device)
             labels = batch_data["label"].to(device)
 
-            outputs = model(inputs)
+            if type == "2d-vit":
+                outputs = model(inputs)
+
+            if type == "3d-unet":
+                roi_size = (80, 160, 160)
+                sw_batch_size = 1
+                outputs = sliding_window_inference(
+                    inputs=inputs,
+                    roi_size=roi_size,
+                    sw_batch_size=sw_batch_size,
+                    predictor=model,
+                    overlap=0.25
+                )
 
             loss = loss_function(outputs, labels)
             val_loss += loss.item()
             val_batches += 1
 
-            # Convert outputs to predictions using argmax
-            outputs_soft = torch.softmax(outputs, dim=1)
-            predictions = torch.argmax(outputs_soft, dim=1, keepdim=True)
+            # Convert outputs to predictions using argma
+            predictions = torch.argmax(torch.softmax(outputs, dim=1), dim=1, keepdim=True)
 
             # Process each sample in batch
             for batch_sample in range(predictions.shape[0]):
-                pred_sample = predictions[batch_sample]  # Shape: [1, H, W]
-                label_sample = labels[batch_sample]      # Shape: [1, H, W]
+                pred_sample = predictions[batch_sample].squeeze(0)  # [H, W, D]
+                label_sample = labels[batch_sample].squeeze(0)      # [H, W, D]
 
-                # Remove channel dimension for processing
-                pred_sample = pred_sample.squeeze(0)  # Shape: [H, W]
-                label_sample = label_sample.squeeze(0)  # Shape: [H, W]
 
                 # KIDNEY DICE: Include both kidney (1) and tumor (2) as foreground
                 kidney_pred = ((pred_sample == 1) | (pred_sample == 2)).float()
                 kidney_label = ((label_sample == 1) | (label_sample == 2)).float()
 
-                if kidney_label.sum() > 0:  # Only calculate if kidney present
-                    # Calculate DICE manually
-                    intersection = (kidney_pred * kidney_label).sum()
-                    dice_score = (2.0 * intersection) / (kidney_pred.sum() + kidney_label.sum())
-                    kidney_dice_scores.append(dice_score.item())
+                def dice_score(pred, gt):
+                    """Calculate DICE score with proper edge case handling."""
 
-                # TUMOR DICE: Only tumor (class 2)
+                    if gt.sum() == 0 and pred.sum() == 0:
+                        return 1.0  # Perfect prediction of absence
+                    elif gt.sum() == 0:
+                        return 0.0  # False positive
+                    else:
+                        intersection = (pred * gt).sum()
+                        return (2.0 * intersection) / (pred.sum() + gt.sum())
+
+                
+
+                kidney_dice = dice_score(kidney_pred, kidney_label)
+                kidney_dice_scores.append(kidney_dice.item() if torch.is_tensor(kidney_dice) else kidney_dice)
+
+                # TUMOR DICE: Always calculated, following KiTS19 protocol
                 tumor_pred = (pred_sample == 2).float()
                 tumor_label = (label_sample == 2).float()
-
-                if tumor_label.sum() > 0:  # Only calculate if tumor present
-                    # Calculate DICE manually
-                    intersection = (tumor_pred * tumor_label).sum()
-                    dice_score = (2.0 * intersection) / (tumor_pred.sum() + tumor_label.sum())
-                    tumor_dice_scores.append(dice_score.item())
+                
+                tumor_dice = dice_score(tumor_pred, tumor_label)
+                tumor_dice_scores.append(tumor_dice.item() if torch.is_tensor(tumor_dice) else tumor_dice)
+                
+                # Track statistics
+                if tumor_label.sum() > 0:
+                    cases_with_tumors += 1
+                if tumor_label.sum() == 0 and tumor_pred.sum() > 0:
+                    cases_with_false_positive_tumors += 1
+                
+                # Debug for first few samples
+                if batch_idx < 2:
+                    print(f"   Sample {batch_idx}: Kidney DICE={kidney_dice:.3f}, Tumor DICE={tumor_dice:.3f}")
+                    print(f"     Tumor present: {tumor_label.sum() > 0}, Tumor predicted: {tumor_pred.sum() > 0}")
+    
 
     # Calculate mean DICE scores
-    kidney_dice = np.mean(kidney_dice_scores) if kidney_dice_scores else 0.0
-    tumor_dice = np.mean(tumor_dice_scores) if tumor_dice_scores else 0.0
+    kidney_dice_avg = np.mean(kidney_dice_scores)
+    tumor_dice_avg = np.mean(tumor_dice_scores)
 
     print(f"   Validation samples with kidney: {len(kidney_dice_scores)}", flush=True)
     print(f"   Validation samples with tumor: {len(tumor_dice_scores)}", flush=True)
 
-    return val_loss / val_batches, kidney_dice, tumor_dice
+    return val_loss / val_batches, kidney_dice_avg, tumor_dice_avg
 
 def train_epoch(model, train_loader, optimizer, loss_fn, device, accelerator):
     """ Train the model for one epoch. """
@@ -102,10 +133,20 @@ def train_epoch(model, train_loader, optimizer, loss_fn, device, accelerator):
     return epoch_loss / batch_count
 
 
-def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth"):
+def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth", type="2d-vit"):
     """
     Complete training loop following KiTS19 winning methodology.
     Fixed version with proper variable names.
+    Args:
+        model: The model to train.
+        loss_fn: Loss function to use.
+        optimizer: Optimizer for training.
+        train_loader: DataLoader for training data.
+        val_loader: DataLoader for validation data.
+        device: Device to run the training on (CPU or GPU).
+        num_epochs: Number of epochs to train.
+        save_path: Path to save the best model.
+        type: Type of model (e.g., "2d-vit", "3d-unet").
     """
 
     accelerator = Accelerator(mixed_precision="fp16") # Use mixed precision for faster training
@@ -145,7 +186,7 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
 
         # Validation
         val_loss, kidney_dice, tumor_dice = validate(
-            model, val_loader, loss_fn, dice_metric, device
+            model, val_loader, loss_fn, dice_metric, device, type=type
         )
         val_losses.append(val_loss)
         kidney_dices.append(kidney_dice)
@@ -156,11 +197,14 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
         print(f"   Val Loss: {val_loss:.4f}", flush=True)
         print(f"   Kidney DICE: {kidney_dice:.4f}", flush=True)
         print(f"   Tumor DICE: {tumor_dice:.4f}", flush=True)
+        # Print current learning rate
+        print(f"   Learning Rate: {optimizer.param_groups[0]['lr']:.6f}", flush=True)
 
         # Save best model based on tumor dice (as per challenge rules)
         if tumor_dice > best_tumor_dice:
             best_tumor_dice = tumor_dice
             torch.save(model.state_dict(), save_path)
+            accelerator.save_model(model, save_path + '-accelerator.pth')
             print(f"🎯 New best model saved! Tumor DICE: {best_tumor_dice:.4f}", flush=True)
         
         # Update scheduler
