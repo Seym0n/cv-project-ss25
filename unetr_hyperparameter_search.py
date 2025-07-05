@@ -23,7 +23,7 @@ if __name__ == "__main__":
     print(f"Device: {device}", flush=True)
 
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"
-    BATCH_SIZE = 8
+    BATCH_SIZE = 16
     NUM_EPOCHS = 25
     NUM_WORKERS = 4
 
