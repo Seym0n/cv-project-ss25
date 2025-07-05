@@ -53,9 +53,9 @@ if __name__ == "__main__":
     tumor_pixel_counts = 0
     kidney_pixel_counts = 0
 
-    for data in train_dataset:
-        image = data["image"]
-        label = data["label"]
+    for batch in train_loader:
+        image = batch["image"]
+        label = batch["label"]
 
         background_pixel_counts += (label == 0).sum().item()
         tumor_pixel_counts += (label == 2).sum().item()

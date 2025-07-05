@@ -4,7 +4,7 @@ import numpy as np
 import random
 from pathlib import Path
 
-from monai.data import Dataset, DataLoader, pad_list_data_collate, CacheDataset, FlattenedDataset
+from monai.data import Dataset, DataLoader, pad_list_data_collate, list_data_collate
 from torch.utils.data import ConcatDataset
 
 import nibabel as nib
@@ -171,14 +171,14 @@ def get_2D_datasets(train_list, val_list, aug_transform, no_aug_transform, batch
     tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=3)  # Upsample tumor cases
 
     # augment tumor data, but not other data
-    # Use CacheDataset + FlattenedDataset to handle multiple crops
-    tumor_ds = FlattenedDataset(CacheDataset(data=tumor_list, transform=aug_transform, cache_rate=1.0))
-    other_ds = CacheDataset(data=other_list, transform=no_aug_transform, cache_rate=1.0)
-
+    tumor_ds = Dataset(data=tumor_list, transform=aug_transform)
+    other_ds = Dataset(data=other_list, transform=no_aug_transform)
+    
+    # combine datasets
     train_ds = ConcatDataset([tumor_ds, other_ds])
-    val_ds = CacheDataset(data=val_list, transform=no_aug_transform, cache_rate=1.0)
+    val_ds = Dataset(data=val_list, transform=no_aug_transform)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, collate_fn=list_data_collate)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
 
     return train_loader, val_loader, train_ds, val_ds
