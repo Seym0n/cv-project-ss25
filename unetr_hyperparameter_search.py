@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     loss_functions = [DiceFocalLoss, DiceCELoss]
     weights = [[0.3, 1, 5], [background_proportion**-1, kidney_proportion**-1, tumor_proportion**-1]]
-    learning_rates= [1e-5, 3e-5, 1e-4]
+    learning_rates= [3e-5, 1e-4]
 
     results_file = "unetr_hyperparameter_search_results3.txt"
     with open(results_file, "w") as f:
