@@ -108,7 +108,7 @@ def get_2D_data(train_cases, val_cases, data_dir):
     data_list = [{"image": img, "label": lbl, "case_id": [part for part in Path(img).parts if part.startswith("case_")][0]} for img, lbl in zip(images, labels)]
 
     train_list = [d for d in data_list if d["case_id"] in train_cases]
-    train_list = filter_background_cases(train_list, fraction_to_keep=0.1) # Filter out background-only cases
+    train_list = filter_background_cases(train_list, fraction_to_keep=0.2) # Filter out background-only cases
 
 
     val_list = [d for d in data_list if d["case_id"] in val_cases]
