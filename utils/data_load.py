@@ -4,7 +4,7 @@ import numpy as np
 import random
 from pathlib import Path
 
-from monai.data import Dataset, DataLoader, pad_list_data_collate, list_data_collate
+from monai.data import Dataset, DataLoader, pad_list_data_collate, CacheDataset
 from torch.utils.data import ConcatDataset
 
 import nibabel as nib
@@ -108,7 +108,7 @@ def get_2D_data(train_cases, val_cases, data_dir):
     data_list = [{"image": img, "label": lbl, "case_id": [part for part in Path(img).parts if part.startswith("case_")][0]} for img, lbl in zip(images, labels)]
 
     train_list = [d for d in data_list if d["case_id"] in train_cases]
-    train_list = filter_background_cases(train_list, fraction_to_keep=0.01) # Filter out background-only cases
+    train_list = filter_background_cases(train_list, fraction_to_keep=0.05) # Filter out background-only cases
 
 
     val_list = [d for d in data_list if d["case_id"] in val_cases]
@@ -171,12 +171,12 @@ def get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms,
     tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=3)  # Upsample tumor cases
 
     # augment tumor data, but not other data
-    tumor_ds = Dataset(data=tumor_list, transform=augment_transforms)
-    other_ds = Dataset(data=other_list, transform=no_aug_transforms)
+    tumor_ds = CacheDataset(data=tumor_list, transform=augment_transforms, cache_rate=1.0)
+    other_ds = CacheDataset(data=other_list, transform=no_aug_transforms, cache_rate=1.0)
 
     # combine datasets
     train_ds = ConcatDataset([tumor_ds, other_ds])
-    val_ds = Dataset(data=val_list, transform=no_aug_transforms)
+    val_ds = CacheDataset(data=val_list, transform=no_aug_transforms, cache_rate=1.0)
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)

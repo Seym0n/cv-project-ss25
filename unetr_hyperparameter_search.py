@@ -98,14 +98,20 @@ if __name__ == "__main__":
                 img_size=512,
                 feature_size=feat_size,
                 norm_name='batch',
-                spatial_dims=2).to(device)
+                spatial_dims=2,
+                dropout_rate=0.1, # help with overfitting
+                ).to(device)
 
             loss_fn_instance = loss_fn(
                     to_onehot_y=True,  # convert target to one-hot format
                     softmax=True,       # apply softmax to model outputs
                     weight=torch.tensor(weight)  # Adjust weights for background, kidney, tumor
                 ).to(device)
-            optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
+            optimizer = torch.optim.AdamW(
+                model.parameters(), 
+                lr=LR,
+                weight_decay=1e-5  # small weight decay to help with overfitting
+            )
 
             weight_str = "-".join([f"{w:.2f}" for w in weight])
             save_path = f"best_{loss_fn.__name__}_{weight_str}_{LR}.pth"
