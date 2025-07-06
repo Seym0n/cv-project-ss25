@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import json
+import os
 from accelerate import Accelerator
 from monai.metrics import DiceMetric
 from monai.optimizers import WarmupCosineSchedule
@@ -133,10 +135,40 @@ def train_epoch(model, train_loader, optimizer, loss_fn, device, accelerator):
     return epoch_loss / batch_count
 
 
-def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth", type="2d-vit"):
+def save_progress_to_json(progress_file, epoch, train_loss, val_loss, kidney_dice, tumor_dice, learning_rate):
+    """Save training progress to JSON file"""
+    
+    # Load existing progress if file exists
+    if os.path.exists(progress_file):
+        with open(progress_file, 'r') as f:
+            progress = json.load(f)
+    else:
+        progress = {
+            "epochs": [],
+            "train_losses": [],
+            "val_losses": [],
+            "kidney_dice_scores": [],
+            "tumor_dice_scores": [],
+            "learning_rates": []
+        }
+    
+    # Append new data
+    progress["epochs"].append(epoch)
+    progress["train_losses"].append(train_loss)
+    progress["val_losses"].append(val_loss)
+    progress["kidney_dice_scores"].append(kidney_dice)
+    progress["tumor_dice_scores"].append(tumor_dice)
+    progress["learning_rates"].append(learning_rate)
+    
+    # Save updated progress
+    with open(progress_file, 'w') as f:
+        json.dump(progress, f, indent=2)
+
+
+def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth", type="2d-vit", progress_file="training_progress.json"):
     """
     Complete training loop following KiTS19 winning methodology.
-    Fixed version with proper variable names.
+    Fixed version with proper variable names and JSON progress logging.
     Args:
         model: The model to train.
         loss_fn: Loss function to use.
@@ -147,6 +179,7 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
         num_epochs: Number of epochs to train.
         save_path: Path to save the best model.
         type: Type of model (e.g., "2d-vit", "3d-unet").
+        progress_file: Path to save training progress JSON file.
     """
 
     accelerator = Accelerator(mixed_precision="fp16") # Use mixed precision for faster training
@@ -172,6 +205,7 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
     print(f"   Model: {model_name}", flush=True)
     print(f"   Parameters: {param_count:,}", flush=True)
     print(f"   Epochs: {num_epochs}", flush=True)
+    print(f"   Progress will be saved to: {progress_file}", flush=True)
 
     best_tumor_dice = 0
     train_losses, val_losses, kidney_dices, tumor_dices = [], [], [], []
@@ -194,13 +228,26 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
         kidney_dices.append(kidney_dice)
         tumor_dices.append(tumor_dice)
 
+        # Get current learning rate
+        current_lr = optimizer.param_groups[0]['lr']
+
         print(f"📊 Results:", flush=True)
         print(f"   Train Loss: {train_loss:.4f}", flush=True)
         print(f"   Val Loss: {val_loss:.4f}", flush=True)
         print(f"   Kidney DICE: {kidney_dice:.4f}", flush=True)
         print(f"   Tumor DICE: {tumor_dice:.4f}", flush=True)
-        # Print current learning rate
-        print(f"   Learning Rate: {optimizer.param_groups[0]['lr']:.6f}", flush=True)
+        print(f"   Learning Rate: {current_lr:.6f}", flush=True)
+
+        # Save progress to JSON file
+        save_progress_to_json(
+            progress_file=progress_file,
+            epoch=epoch + 1,
+            train_loss=train_loss,
+            val_loss=val_loss,
+            kidney_dice=kidney_dice,
+            tumor_dice=tumor_dice,
+            learning_rate=current_lr
+        )
 
         # Save best model based on tumor dice (as per challenge rules)
         if tumor_dice > best_tumor_dice:
@@ -215,5 +262,6 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
     print(f"\n🏆 Training Completed!", flush=True)
     print(f"   Best Tumor DICE: {best_tumor_dice:.4f}", flush=True)
     print(f"   Model saved to: {save_path}", flush=True)
+    print(f"   Training progress saved to: {progress_file}", flush=True)
 
     return train_losses, val_losses, kidney_dices, tumor_dices
