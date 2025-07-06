@@ -120,7 +120,7 @@ def get_case_dataset(case, data_dir, transforms, num_workers):
     images = sorted(glob(f"{data_dir}/{case}/images/*.npy"))
     labels = sorted(glob(f"{data_dir}/{case}/labels/*.npy"))
 
-    data_list = [{"image": img, "label": lbl, "case_id": case} for img, lbl in zip(images, labels)]
+    data_list = [{"image": img, "label": lbl, "case_id": case, "slice_num": img.split("/")[-1].split(".")[0]} for img, lbl in zip(images, labels)]
 
     val_ds = Dataset(data=data_list, transform=transforms)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
@@ -154,7 +154,7 @@ def get_test_case(case, data_dir, transforms, num_workers):
     return test_loader, image_nifti
 
 
-def get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms, val_transforms, batch_size=4, num_workers=4):
+def get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms, batch_size=4, num_workers=4):
     """
     Create training and validation datasets and loaders for 2D data.
     Args:
@@ -168,7 +168,7 @@ def get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms,
     Returns:
         tuple: Training and validation DataLoaders, and their corresponding datasets.
     """
-    tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=2)  # Upsample tumor cases
+    tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=3)  # Upsample tumor cases
 
     # augment tumor data, but not other data
     tumor_ds = Dataset(data=tumor_list, transform=augment_transforms)
@@ -176,9 +176,9 @@ def get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms,
 
     # combine datasets
     train_ds = ConcatDataset([tumor_ds, other_ds])
-    val_ds = Dataset(data=val_list, transform=val_transforms)
+    val_ds = Dataset(data=val_list, transform=no_aug_transforms)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, collate_fn=list_data_collate)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
 
     return train_loader, val_loader, train_ds, val_ds

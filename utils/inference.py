@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import nibabel as nib
 
 
 def get_case_predictions(model, case_dataset, device):
@@ -26,8 +27,9 @@ def get_case_predictions(model, case_dataset, device):
             predictions = torch.argmax(outputs_soft, dim=1, keepdim=True)
 
             prediction_volume.append(predictions.cpu())
-    
-    return np.concatenate(prediction_volume, axis=0)
+
+    vol = torch.cat(prediction_volume, dim=0)
+    return vol.permute(1, 0, 2, 3)
 
 
 def evaluate_predictions(val_data):
@@ -47,8 +49,15 @@ def evaluate_predictions(val_data):
     bg_dice_scores = []
 
     for case_id, case_data in val_data.items():
-        ground_truth = case_data["ground_truth"]
+        if isinstance(case_data["ground_truth"], nib.Nifti1Image):
+            ground_truth = torch.from_numpy(case_data["ground_truth"].get_fdata())
+        else:
+            ground_truth = case_data["ground_truth"]
+
         predictions = case_data["predictions"]
+
+        if predictions.ndim == 4 and predictions.shape[1] == 1:
+            predictions = predictions.squeeze(1)
         
         # KIDNEY DICE: Include both kidney (1) and tumor (2) as foreground
         kidney_pred = ((predictions == 1) | (predictions == 2)).float()
@@ -65,7 +74,6 @@ def evaluate_predictions(val_data):
                 intersection = (pred * gt).sum()
                 return (2.0 * intersection) / (pred.sum() + gt.sum())
 
-        
 
         kidney_dice = dice_score(kidney_pred, kidney_label)
         kidney_dice_scores.append(kidney_dice.item() if torch.is_tensor(kidney_dice) else kidney_dice)

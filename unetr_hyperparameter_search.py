@@ -1,6 +1,7 @@
 import itertools
 import torch
 import monai
+import pandas as pd
 from monai.utils import set_determinism
 from monai.networks.nets import UNETR
 from monai.losses import DiceFocalLoss, DiceCELoss
@@ -43,10 +44,10 @@ if __name__ == "__main__":
     print(f"   Training on {len(train_list)} cases, validating on {len(val_list)} cases", flush=True)
 
     # Get transforms
-    augment_transforms, no_aug_transforms, val_transforms = get_2D_transforms()
+    augment_transforms, no_aug_transforms= get_2D_transforms()
 
     # Get datasets and loaders
-    train_loader, val_loader, train_dataset, _ = get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms, val_transforms, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
+    train_loader, val_loader, _, _ = get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS)
 
     # find class proportions
     background_pixel_counts = 0
@@ -71,7 +72,7 @@ if __name__ == "__main__":
 
 
     loss_functions = [DiceFocalLoss, DiceCELoss]
-    weights = [[0.3, 1, 5], [background_proportion**-1, kidney_proportion**-1, tumor_proportion**-1]]
+    weights = [[0.3, 1, 3], [background_proportion**-1, kidney_proportion**-1, tumor_proportion**-1]]
     learning_rates= [3e-5, 1e-4]
     feat_sizes = [16, 32]
 
@@ -94,7 +95,7 @@ if __name__ == "__main__":
             model = UNETR(  # patch size fixed to 16x16 for 2D
                 in_channels=1,
                 out_channels=3, # background, kidney, tumor
-                img_size=256,
+                img_size=512,
                 feature_size=feat_size,
                 norm_name='batch',
                 spatial_dims=2).to(device)
@@ -122,6 +123,16 @@ if __name__ == "__main__":
 
             with open(results_file, "a") as f:
                 f.write(f"{loss_fn.__name__}, {weight_str}, {LR}, {best_train_loss:.4f}, {best_val_loss:.4f}, {best_kidney_dice:.4f}, {best_tumor_dice:.4f}\n")
+
+            # create csv from train stats
+            train_stats = pd.DataFrame({
+                "epoch": list(range(1, NUM_EPOCHS + 1)),
+                "train_loss": train_losses,
+                "val_loss": val_losses,
+                "kidney_dice": kidney_dices,
+                "tumor_dice": tumor_dices
+            })
+            train_stats.to_csv(f"train_stats_{loss_fn.__name__}_{weight_str}_{LR}.csv", index=False)
 
             # clear memory
             del model, loss_fn_instance, optimizer
