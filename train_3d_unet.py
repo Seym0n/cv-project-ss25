@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"  # Update this path
     BATCH_SIZE = 1  
-    NUM_EPOCHS = 600
+    NUM_EPOCHS = 100
     NUM_WORKERS = 4
     LR=3e-4  # Learning rate for AdamW optimizer
 
@@ -51,9 +51,9 @@ if __name__ == "__main__":
         spatial_dims=3,
         in_channels=1,
         out_channels=3,  # Background, kidney, tumor
-        channels=(24, 48, 96, 192, 320),  # Feature progression from paper
+        channels=(30, 60, 120, 240, 320),  # Feature progression from paper
         strides=(2, 2, 2, 2),  # Downsampling strides
-        num_res_units=2,  # Residual blocks per level
+        num_res_units=3,  # Residual blocks per level
         act="LEAKYRELU",  # LeakyReLU activation 
         norm=Norm.INSTANCE,  # Instance normalization
         dropout=0.0,
@@ -62,10 +62,14 @@ if __name__ == "__main__":
     )
 
     loss_fn = DiceFocalLoss(
-            to_onehot_y=True,  # convert target to one-hot format
-            softmax=True,       # apply softmax to model outputs
-            weight=[0.3, 1, 3]  # Adjust weights for background, kidney, tumor
-        ).to(device)
+        include_background=True,
+        to_onehot_y=True,
+        softmax=True,
+        lambda_dice=0.67,            
+        lambda_focal=0.33,
+        gamma=2.0,
+        weight=[0, 1, 3]
+    ).to(device)
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
 
