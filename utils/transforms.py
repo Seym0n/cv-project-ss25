@@ -140,7 +140,7 @@ def get_3D_transforms():
             keys=["image", "label"],
             label_key="label",
             spatial_size=(80, 160, 160),  # Default size
-            ratios=[0, 3, 7],  # No background, kidney=30%, tumor=70%
+            ratios=[0.3, 3, 7],  # No background, kidney=30%, tumor=70%
             num_classes=3,
             num_samples=1,
             warn=False
