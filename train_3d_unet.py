@@ -25,8 +25,8 @@ if __name__ == "__main__":
     print(f"Device: {device}", flush=True)
 
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"  # Update this path
-    BATCH_SIZE = 2
-    NUM_EPOCHS = 5
+    BATCH_SIZE = 4
+    NUM_EPOCHS = 800
     NUM_WORKERS = 4
     LR=3e-4  # Learning rate for AdamW optimizer
 
@@ -54,7 +54,7 @@ if __name__ == "__main__":
         channels=(30, 60, 120, 240, 320),  # Feature progression from paper
         strides=(2, 2, 2, 2),  # Downsampling strides
         num_res_units=3,  # Residual blocks per level
-        act="LEAKYRELU",  # LeakyReLU activation 
+        act="PRELU",  # PRELU activation 
         norm=Norm.INSTANCE,  # Instance normalization
         dropout=0.0,
         kernel_size=3,
