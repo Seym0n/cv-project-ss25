@@ -144,7 +144,7 @@ def get_test_case(case, data_dir, transforms, num_workers):
 
     # Create list of dicts, one per slice
     data_list = [
-        {"image": image_volume[i, :, :], "label": np.zeros_like(image_volume[i, :, :]), "case_id": case}
+        {"image": image_volume[i, :, :], "case_id": case}
         for i in range(image_volume.shape[0])
     ]
 
