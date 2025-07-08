@@ -25,7 +25,7 @@ if __name__ == "__main__":
     BATCH_SIZE = 8
     NUM_EPOCHS = 100
     NUM_WORKERS = 4
-    LR = 0.0001
+    LR = 0.00005
 
     # load data
     all_cases = get_data_list(DATA_ROOT)
@@ -53,17 +53,17 @@ if __name__ == "__main__":
         in_channels=1,
         out_channels=3, # background, kidney, tumor
         img_size=512,
-        feature_size=16,
+        feature_size=32,
         norm_name='batch',
         spatial_dims=2).to(device)
 
     loss_fn = DiceFocalLoss(
             to_onehot_y=True,  # convert target to one-hot format
             softmax=True,       # apply softmax to model outputs
-            weight=[0.3, 1, 3]  # Adjust weights for background, kidney, tumor
+            weight=[0.3, 1, 6]  # Adjust weights for background, kidney, tumor
         ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
 
     train_losses, val_losses, kidney_dices, tumor_dices = train_kits19_model(
-        model, loss_fn, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path="best0107.pth"
-    )
+        model, loss_fn, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path="best0307.pth"
+        )

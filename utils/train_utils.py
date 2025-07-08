@@ -33,11 +33,13 @@ def validate(model, val_loader, loss_function, dice_metric, device, type="2d-vit
             labels = batch_data["label"].to(device)
 
             if type == "2d-vit":
+                # For 2D-ViT, we assume inputs are 2D slices
                 outputs = model(inputs)
 
             if type == "3d-unet":
                 roi_size = (80, 160, 160)
                 sw_batch_size = 1
+
                 outputs = sliding_window_inference(
                     inputs=inputs,
                     roi_size=roi_size,

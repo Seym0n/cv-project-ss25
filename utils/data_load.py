@@ -4,11 +4,10 @@ import numpy as np
 import random
 from pathlib import Path
 
-from monai.data import Dataset, DataLoader, pad_list_data_collate
+from monai.data import Dataset, DataLoader, pad_list_data_collate, CacheDataset
 from torch.utils.data import ConcatDataset
 
-
-
+import nibabel as nib
 
 def get_data_list(data_root):
     """
@@ -109,14 +108,53 @@ def get_2D_data(train_cases, val_cases, data_dir):
     data_list = [{"image": img, "label": lbl, "case_id": [part for part in Path(img).parts if part.startswith("case_")][0]} for img, lbl in zip(images, labels)]
 
     train_list = [d for d in data_list if d["case_id"] in train_cases]
-    train_list = filter_background_cases(train_list, fraction_to_keep=0.01) # Filter out background-only cases
+    train_list = filter_background_cases(train_list, fraction_to_keep=0.2) # Filter out background-only cases
 
 
     val_list = [d for d in data_list if d["case_id"] in val_cases]
     return train_list, val_list
 
 
-def get_2D_datasets(train_list, val_list, aug_transform, no_aug_transform, batch_size=4, num_workers=4):
+def get_case_dataset(case, data_dir, transforms, num_workers):
+
+    images = sorted(glob(f"{data_dir}/{case}/images/*.npy"))
+    labels = sorted(glob(f"{data_dir}/{case}/labels/*.npy"))
+
+    data_list = [{"image": img, "label": lbl, "case_id": case, "slice_num": img.split("/")[-1].split(".")[0]} for img, lbl in zip(images, labels)]
+
+    val_ds = Dataset(data=data_list, transform=transforms)
+    val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
+
+
+    imaging_path = os.path.join(data_dir, case, "imaging.nii.gz")
+    segmentation_path = os.path.join(data_dir, case, "segmentation.nii.gz")
+
+    # load nifti files
+    image = nib.load(imaging_path)
+    segmentation = nib.load(segmentation_path)
+
+    return val_loader, image, segmentation
+
+
+def get_test_case(case, data_dir, transforms, num_workers):
+    
+    imaging_path = os.path.join(data_dir, case, "imaging.nii.gz")
+    image_nifti = nib.load(imaging_path)
+    image_volume = image_nifti.get_fdata(dtype=np.float32)  # (H, W, D)
+
+    # Create list of dicts, one per slice
+    data_list = [
+        {"image": image_volume[i, :, :], "label": np.zeros_like(image_volume[i, :, :]), "case_id": case}
+        for i in range(image_volume.shape[0])
+    ]
+
+    test_ds = Dataset(data=data_list, transform=transforms)
+    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=num_workers)
+
+    return test_loader, image_nifti
+
+
+def get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms, batch_size=4, num_workers=4):
     """
     Create training and validation datasets and loaders for 2D data.
     Args:
@@ -133,12 +171,12 @@ def get_2D_datasets(train_list, val_list, aug_transform, no_aug_transform, batch
     tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=3)  # Upsample tumor cases
 
     # augment tumor data, but not other data
-    tumor_ds = Dataset(data=tumor_list, transform=aug_transform)
-    other_ds = Dataset(data=other_list, transform=no_aug_transform)
-    
+    tumor_ds = CacheDataset(data=tumor_list, transform=augment_transforms, cache_rate=1.0)
+    other_ds = CacheDataset(data=other_list, transform=no_aug_transforms, cache_rate=1.0)
+
     # combine datasets
     train_ds = ConcatDataset([tumor_ds, other_ds])
-    val_ds = Dataset(data=val_list, transform=no_aug_transform)
+    val_ds = CacheDataset(data=val_list, transform=no_aug_transforms, cache_rate=1.0)
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
