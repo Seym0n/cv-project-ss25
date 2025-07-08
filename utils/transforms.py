@@ -2,7 +2,7 @@ from monai.transforms import (
     MapTransform, ResizeD, Compose, LoadImaged, EnsureChannelFirstd, Spacingd, Orientationd,
     ScaleIntensityRanged, ToTensord, CenterSpatialCropd, EnsureTyped,
     RandFlipd, RandRotate90d, RandScaleIntensityd, RandAdjustContrastd,
-    RandGaussianNoised, RandShiftIntensityd, SpatialPadd, CropForegroundd,
+    RandGaussianNoised, RandShiftIntensityd, SpatialPadd, CropForegroundd, RandRotated,
     RandSpatialCropd, Resized, OneOf, RandCropByLabelClassesd, Rand3DElasticd
 )
 import numpy as np
@@ -143,8 +143,17 @@ def get_3D_transforms():
         RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),
         RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=2),
         
-        RandRotate90d(keys=["image", "label"], prob=0.5, max_k=3),
-        
+        RandRotated(
+            keys=["image", "label"],
+            range_x=15.0,
+            range_y=15.0,
+            range_z=15.0,
+            prob=0.5,
+            mode=("bilinear", "nearest"),
+            padding_mode="border",
+            keep_size=True
+        ),
+
         # Intensity augmentations
         RandScaleIntensityd(keys=["image"], factors=0.2, prob=0.5),  # Increased range
         RandAdjustContrastd(keys=["image"], prob=0.5),
