@@ -86,26 +86,24 @@ def get_3D_transforms():
     Preprocessing pipeline for KiTS19 with augmentation and validation
     """
     print("Version 2 of 3D transforms")
-    # Define possible patch sizes for multi-scale training
-    patch_sizes = [(64, 128, 128), (80, 160, 160), (96, 192, 192)]
-    
+
     # Training transforms with enhanced augmentation
     train_transforms = Compose([
-        # 1. Load images and ensure channel first
+        # Load images and ensure channel first
         LoadImaged(keys=["image", "label"]),
         EnsureChannelFirstd(keys=["image", "label"]),
         
-        # 2. Resample to target spacing
+        # Resample to target spacing
         Spacingd(
             keys=["image", "label"], 
             pixdim=(3.22, 1.62, 1.62),
             mode=("bilinear", "nearest")
         ),
         
-        # 3. Orientation to standard (RAS+)
+        # Orientation to standard (RAS+)
         Orientationd(keys=["image", "label"], axcodes="RAS"),
         
-        # 4. Intensity preprocessing
+        # Intensity preprocessing
         ScaleIntensityRanged(
             keys=["image"],
             a_min=-79,
@@ -115,21 +113,14 @@ def get_3D_transforms():
             clip=True
         ),
         
-        # 5. Ensure minimum size for largest patch
-        SpatialPadd(
-            keys=["image", "label"],
-            spatial_size=(96, 192, 192),  # Max patch size
-            mode="constant"
-        ),
-        
-        # 6. Crop foreground to focus on kidney/tumor
+        # Crop foreground to focus on kidney/tumor
         CropForegroundd(
             keys=["image", "label"],
             source_key="image",
             margin=10
         ),
         
-        # 7. Ensure minimum size after cropping
+        # Ensure minimum size after cropping
         SpatialPadd(
             keys=["image", "label"], 
             spatial_size=(96, 192, 192),
@@ -147,16 +138,7 @@ def get_3D_transforms():
             warn=False
         ),
         
-        # 9. Random patch size variation (Step 3)
-        OneOf([
-            RandSpatialCropd(
-                keys=["image", "label"],
-                roi_size=size,
-                random_size=False
-            ) for size in patch_sizes
-        ], weights=[0.3, 0.4, 0.3]),  # Equal-ish probability for patch sizes
-        
-        # 10. Enhanced data augmentation (Step 1)
+        # Data augmentation
         RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=0),
         RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),
         RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=2),
@@ -178,7 +160,7 @@ def get_3D_transforms():
             mode=("bilinear", "nearest")
         ),
         
-        # 11. Convert to tensor
+        # Convert to tensor
         EnsureTyped(keys=["image", "label"], dtype=torch.float32),
         ToTensord(keys=["image", "label"])
     ])
