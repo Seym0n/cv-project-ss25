@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     train_transforms, val_transforms = get_3D_transforms()
 
-    train_loader, val_loader = get_3D_dataset(train_data, val_data, train_transforms, val_transforms)
+    train_loader, val_loader = get_3D_dataset(train_data, val_data, train_transforms, val_transforms, BATCH_SIZE=BATCH_SIZE, NUM_WORKERS=NUM_WORKERS)
 
     # Model
 
