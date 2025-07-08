@@ -6,6 +6,10 @@ from accelerate import Accelerator
 from monai.metrics import DiceMetric
 from monai.optimizers import WarmupCosineSchedule
 from monai.inferers import sliding_window_inference
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 
 def validate(model, val_loader, loss_function, dice_metric, device, type="2d-vit"):
@@ -167,7 +171,7 @@ def save_progress_to_json(progress_file, epoch, train_loss, val_loss, kidney_dic
         json.dump(progress, f, indent=2)
 
 
-def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth", type="2d-vit", progress_file="training_progress.json"):
+def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth", type="2d-vit", progress_file="training_progress.json", use_wandb=False, wandb_project="kits19-segmentation", wandb_config=None):
     """
     Complete training loop following KiTS19 winning methodology.
     Fixed version with proper variable names and JSON progress logging.
@@ -182,11 +186,37 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
         save_path: Path to save the best model.
         type: Type of model (e.g., "2d-vit", "3d-unet").
         progress_file: Path to save training progress JSON file.
+        use_wandb: Whether to use wandb for logging (default: False).
+        wandb_project: Name of the wandb project (default: "kits19-segmentation").
+        wandb_config: Configuration dictionary for wandb (default: None).
     """
 
     accelerator = Accelerator(mixed_precision="fp16") # Use mixed precision for faster training
 
     dice_metric = DiceMetric(include_background=True, reduction="mean")
+    
+    # Initialize wandb if requested
+    if use_wandb:
+        if wandb is None:
+            raise ImportError("wandb is not installed. Please install it with: pip install wandb")
+        
+        # Set up wandb config
+        config = {
+            "epochs": num_epochs,
+            "model_type": type,
+            "model_name": model.__class__.__name__,
+            "parameters": sum(p.numel() for p in model.parameters()),
+            "mixed_precision": "fp16",
+            "warmup_steps": 25,
+            "scheduler_cycles": 3.5
+        }
+        
+        # Update config with user-provided config
+        if wandb_config:
+            config.update(wandb_config)
+        
+        wandb.init(project=wandb_project, config=config)
+        wandb.watch(model)
 
     # Prepare everything with accelerate
     model, optimizer, train_loader, val_loader = accelerator.prepare(
@@ -239,6 +269,18 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
         print(f"   Kidney DICE: {kidney_dice:.4f}", flush=True)
         print(f"   Tumor DICE: {tumor_dice:.4f}", flush=True)
         print(f"   Learning Rate: {current_lr:.6f}", flush=True)
+        
+        # Log to wandb if enabled
+        if use_wandb and wandb is not None:
+            wandb.log({
+                "epoch": epoch + 1,
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "kidney_dice": kidney_dice,
+                "tumor_dice": tumor_dice,
+                "learning_rate": current_lr,
+                "best_tumor_dice": best_tumor_dice
+            })
 
         # Save progress to JSON file
         save_progress_to_json(
@@ -265,5 +307,9 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
     print(f"   Best Tumor DICE: {best_tumor_dice:.4f}", flush=True)
     print(f"   Model saved to: {save_path}", flush=True)
     print(f"   Training progress saved to: {progress_file}", flush=True)
+    
+    # Finish wandb run if enabled
+    if use_wandb and wandb is not None:
+        wandb.finish()
 
     return train_losses, val_losses, kidney_dices, tumor_dices
