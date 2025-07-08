@@ -84,4 +84,15 @@ if __name__ == "__main__":
         num_epochs=NUM_EPOCHS,
         save_path="kits19-model-3d-unet.pth",
         type="3d-unet",
+        scheduler_cycles=3.5,
+        scheduler_warmup_steps=25,
+        use_wandb=True,
+        wandb_project="kits19-segmentation-3d-unet",
+        wandb_config={
+            "batch_size": BATCH_SIZE,
+            "num_epochs": NUM_EPOCHS,
+            "learning_rate": LR,
+            "model_type": "3d-unet",
+        },
+        wandb_notes="Training 3D Unet with MONAI on KiTS19 dataset - Version 5"
     )

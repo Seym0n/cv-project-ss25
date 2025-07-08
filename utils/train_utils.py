@@ -14,7 +14,7 @@ except ImportError:
 
 def validate(model, val_loader, loss_function, dice_metric, device, type="2d-vit"):
     """
-    Fixed validation function with correct DICE calculation for KiTS19.
+    Validation function with correct DICE calculation for KiTS19.
     Key fixes:
     1. Kidney DICE includes both kidney (1) and tumor (2) labels as foreground
     2. Uses argmax instead of thresholding softmax outputs
@@ -171,10 +171,9 @@ def save_progress_to_json(progress_file, epoch, train_loss, val_loss, kidney_dic
         json.dump(progress, f, indent=2)
 
 
-def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth", type="2d-vit", progress_file="training_progress.json", use_wandb=False, wandb_project="kits19-segmentation", wandb_config=None):
+def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, device, num_epochs=100, save_path="best_kits19_model.pth", type="2d-vit", progress_file="training_progress.json", use_wandb=False, wandb_project="kits19-segmentation", wandb_config=None, wandb_notes=None, scheduler_warmup_steps=25, scheduler_cycles=3.5):
     """
-    Complete training loop following KiTS19 winning methodology.
-    Fixed version with proper variable names and JSON progress logging.
+    Training loop following KiTS19 winning methodology.
     Args:
         model: The model to train.
         loss_fn: Loss function to use.
@@ -189,6 +188,9 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
         use_wandb: Whether to use wandb for logging (default: False).
         wandb_project: Name of the wandb project (default: "kits19-segmentation").
         wandb_config: Configuration dictionary for wandb (default: None).
+        wandb_notes: Notes to add to wandb run (default: None).
+        scheduler_warmup_steps: Number of warmup steps for the scheduler (default: 25).
+        scheduler_cycles: Number of cycles for the cosine scheduler (default: 3.5).
     """
 
     accelerator = Accelerator(mixed_precision="fp16") # Use mixed precision for faster training
@@ -207,15 +209,15 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
             "model_name": model.__class__.__name__,
             "parameters": sum(p.numel() for p in model.parameters()),
             "mixed_precision": "fp16",
-            "warmup_steps": 25,
-            "scheduler_cycles": 3.5
+            "warmup_steps": scheduler_warmup_steps,
+            "scheduler_cycles": scheduler_cycles
         }
         
         # Update config with user-provided config
         if wandb_config:
             config.update(wandb_config)
         
-        wandb.init(project=wandb_project, config=config)
+        wandb.init(project=wandb_project, config=config, notes=wandb_notes)
         wandb.watch(model)
 
     # Prepare everything with accelerate
@@ -226,9 +228,9 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
     print('Training with adapted WarmupCosineSchedule v2')
     scheduler = WarmupCosineSchedule(
         optimizer,
-        warmup_steps=25,
+        warmup_steps=scheduler_warmup_steps,
         t_total=num_epochs,
-        cycles=3.5
+        cycles=scheduler_cycles
     )
 
     model_name = model.__class__.__name__
@@ -299,6 +301,11 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
             torch.save(model.state_dict(), save_path)
             accelerator.save_model(model, save_path + '-accelerator.pth')
             print(f"🎯 New best model saved! Tumor DICE: {best_tumor_dice:.4f}", flush=True)
+            
+            # Log models to wandb if enabled
+            if use_wandb and wandb is not None:
+                wandb.log_model(path=save_path, name=f"best_model_epoch_{epoch+1}")
+                wandb.log_model(path=save_path + '-accelerator.pth', name=f"best_model_accelerator_epoch_{epoch+1}")
         
         # Update scheduler
         scheduler.step()
