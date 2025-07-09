@@ -77,11 +77,11 @@ if __name__ == "__main__":
     
 
     # Get evaluation metrics
-    metrics_standard, val_with_scores = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=False, exclude_background_slices=False)
     metrics_standard_nobg, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=False, exclude_background_slices=False)
     metrics_slices, _ = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=True, exclude_background_slices=False)
     metrics_slices_nofp, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=True, exclude_background_slices=True)
     metrics_slices_nobg, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=True, exclude_background_slices=True)
+    metrics_standard, val_with_scores = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=False, exclude_background_slices=False)
 
 
     # save in .csv
@@ -95,18 +95,18 @@ if __name__ == "__main__":
     sorted_cases_tumor = sorted(val_with_scores.items(), key=lambda x: x[1]["tumor_dice"], reverse=True)
 
     # select best and worst cases
-    best_kidney_case = sorted_cases_kidney[0][0]
-    worst_kidney_case = sorted_cases_kidney[-1][0]
-    best_tumor_case = sorted_cases_tumor[0][0]
-    worst_tumor_case = sorted_cases_tumor[-1][0]
+    best_kidney_case = sorted_cases_kidney[:5][0]
+    worst_kidney_case = sorted_cases_kidney[-5:][0]
+    best_tumor_case = sorted_cases_tumor[:5][0]
+    worst_tumor_case = sorted_cases_tumor[-5:][0]
 
-    selected_cases = [best_kidney_case, worst_kidney_case, best_tumor_case, worst_tumor_case]
+    selected_cases = set(best_kidney_case + worst_kidney_case + best_tumor_case + worst_tumor_case)
     selected_val_data = {case_id: val_with_scores[case_id] for case_id in selected_cases}
 
     plot_predictions_3D(selected_val_data, output_path=os.path.join(MODEL_PATH, "plots", "comparison"))
 
     # plot random test predictions
-    random_test_cases = random.sample(test_cases, 10)
+    random_test_cases = random.sample(test_cases, 25)
     test_transforms = get_2D_test_transforms()
     test_data = {}
     for case in random_test_cases:
