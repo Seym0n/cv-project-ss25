@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # save in .csv
     results = [metrics_standard, metrics_standard_nobg, metrics_slices, metrics_slices_nofp, metrics_slices_nobg]
     df = pd.DataFrame(results)
-    df.to_csv(os.path.join(MODEL_PATH, "eval_results.csv"), index=False)
+    df.to_csv(os.path.join(MODEL_PATH, "results", "eval_results.csv"), index=False)
 
     # select cases: good kidney dice, bad kidney dice, good tumor dice, bad tumor dice
     # sort cases by kidney dice
@@ -103,7 +103,7 @@ if __name__ == "__main__":
     selected_cases = set(best_kidney_case + worst_kidney_case + best_tumor_case + worst_tumor_case)
     selected_val_data = {case_id: val_with_scores[case_id] for case_id in selected_cases}
 
-    plot_predictions_3D(selected_val_data, output_path=os.path.join(MODEL_PATH, "plots", "comparison"))
+    plot_predictions_3D(selected_val_data, output_path=os.path.join(MODEL_PATH, "results", "comparison"))
 
     # plot random test predictions
     random_test_cases = random.sample(test_cases, 25)
@@ -118,7 +118,7 @@ if __name__ == "__main__":
             "predictions": case_predictions
         }
 
-    plot_test_slices(test_data, slice_selection='evenly_spaced', output_path=os.path.join(MODEL_PATH, "plots", "slices"))
+    plot_test_slices(test_data, slice_selection='evenly_spaced', output_path=os.path.join(MODEL_PATH, "results", "slices"))
 
 
 
