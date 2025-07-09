@@ -5,7 +5,9 @@ from monai.utils import set_determinism
 from monai.networks.nets import UNETR
 
 from tqdm import tqdm
+import os
 
+import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from utils.data_load import get_data_list, get_case_dataset, get_test_case
@@ -30,7 +32,8 @@ if __name__ == "__main__":
 
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"
     NUM_WORKERS = 4
-    MODEL_PATH = "/scratch/cv-course2025/lschind5/"
+    MODEL_PATH = "/scratch/cv-course2025/lschind5/cv-project-ss25/"
+    MODEL_NAME = "best_DiceCELoss_0.30-1.00-3.00_3e-05.pth"
 
     # load data
     all_cases = get_data_list(DATA_ROOT)
@@ -54,7 +57,7 @@ if __name__ == "__main__":
     spatial_dims=2).to(device)
 
 
-    checkpoint = torch.load("/scratch/cv-course2025/lschind5/cv-project-ss25/best_DiceCELoss_0.30-1.00-3.00_3e-05.pth", map_location="cpu")
+    checkpoint = torch.load(os.path.join(MODEL_PATH, MODEL_NAME), map_location="cpu")
     model.load_state_dict(checkpoint)
 
     augment_transforms, no_aug_transforms= get_2D_transforms()
@@ -78,9 +81,13 @@ if __name__ == "__main__":
     metrics_standard_nobg, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=False, exclude_background_slices=False)
     metrics_slices, _ = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=True, exclude_background_slices=False)
     metrics_slices_nofp, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=True, exclude_background_slices=True)
+    metrics_slices_nobg, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=True, exclude_background_slices=True)
+
 
     # save in .csv
-    ...
+    results = [metrics_standard, metrics_standard_nobg, metrics_slices, metrics_slices_nofp, metrics_slices_nobg]
+    df = pd.DataFrame(results)
+    df.to_csv(os.path.join(MODEL_PATH, "eval_results.csv"), index=False)
 
     # select cases: good kidney dice, bad kidney dice, good tumor dice, bad tumor dice
     # sort cases by kidney dice
@@ -96,10 +103,10 @@ if __name__ == "__main__":
     selected_cases = [best_kidney_case, worst_kidney_case, best_tumor_case, worst_tumor_case]
     selected_val_data = {case_id: val_with_scores[case_id] for case_id in selected_cases}
 
-    plot_predictions_3D(selected_val_data, output_path=f"{MODEL_PATH}/plots")
+    plot_predictions_3D(selected_val_data, output_path=os.path.join(MODEL_PATH, "plots", "comparison"))
 
     # plot random test predictions
-    random_test_cases = random.sample(test_cases, 2)
+    random_test_cases = random.sample(test_cases, 10)
     test_transforms = get_2D_test_transforms()
     test_data = {}
     for case in random_test_cases:
@@ -111,7 +118,7 @@ if __name__ == "__main__":
             "predictions": case_predictions
         }
 
-    plot_test_slices(test_data, slice_selection='evenly_spaced', output_path=f"{MODEL_PATH}/plots")
+    plot_test_slices(test_data, slice_selection='evenly_spaced', output_path=os.path.join(MODEL_PATH, "plots", "slices"))
 
 
 

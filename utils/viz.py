@@ -275,7 +275,7 @@ def plot_test_slices(
             if output_path:
                     output_path_dir = Path(output_path)
                     output_path_dir.mkdir(parents=True, exist_ok=True)
-                    filename = output_path_dir / f"{case}_segmentation_comparison.png"
+                    filename = output_path_dir / f"{case_id}_slice_plots.png"
                     plt.savefig(filename, dpi=dpi, bbox_inches='tight')
 
             plt.show()
