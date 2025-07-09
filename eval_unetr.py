@@ -103,7 +103,7 @@ if __name__ == "__main__":
 
     # Combine all selected case IDs into a single set (removes duplicates)
     selected_case_ids = set(best_kidney_cases + worst_kidney_cases + best_tumor_cases + worst_tumor_cases)
-    selected_val_data = {case_id: val_with_scores[case_id] for case_id in selected_cases}
+    selected_val_data = {case_id: val_with_scores[case_id] for case_id in selected_case_ids}
 
     plot_predictions_3D(selected_val_data, output_path=os.path.join(MODEL_PATH, "results", "comparison"))
 
