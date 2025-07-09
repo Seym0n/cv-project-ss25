@@ -87,6 +87,7 @@ if __name__ == "__main__":
     # save in .csv
     results = [metrics_standard, metrics_standard_nobg, metrics_slices, metrics_slices_nofp, metrics_slices_nobg]
     df = pd.DataFrame(results)
+    os.makedirs(os.path.join(MODEL_PATH, "results"), exist_ok=True)
     df.to_csv(os.path.join(MODEL_PATH, "results", "eval_results.csv"), index=False)
 
     # select cases: good kidney dice, bad kidney dice, good tumor dice, bad tumor dice
