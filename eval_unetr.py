@@ -95,12 +95,13 @@ if __name__ == "__main__":
     sorted_cases_tumor = sorted(val_with_scores.items(), key=lambda x: x[1]["tumor_dice"], reverse=True)
 
     # select best and worst cases
-    best_kidney_case = sorted_cases_kidney[:5][0]
-    worst_kidney_case = sorted_cases_kidney[-5:][0]
-    best_tumor_case = sorted_cases_tumor[:5][0]
-    worst_tumor_case = sorted_cases_tumor[-5:][0]
+    best_kidney_cases = [case_id for case_id, data in sorted_cases_kidney[:5]]  # Top 5 kidney cases
+    worst_kidney_cases = [case_id for case_id, data in sorted_cases_kidney[-5:]]  # Bottom 5 kidney cases
+    best_tumor_cases = [case_id for case_id, data in sorted_cases_tumor[:5]]  # Top 5 tumor cases
+    worst_tumor_cases = [case_id for case_id, data in sorted_cases_tumor[-5:]]  # Bottom 5 tumor cases
 
-    selected_cases = set(best_kidney_case + worst_kidney_case + best_tumor_case + worst_tumor_case)
+    # Combine all selected case IDs into a single set (removes duplicates)
+    selected_case_ids = set(best_kidney_cases + worst_kidney_cases + best_tumor_cases + worst_tumor_cases)
     selected_val_data = {case_id: val_with_scores[case_id] for case_id in selected_cases}
 
     plot_predictions_3D(selected_val_data, output_path=os.path.join(MODEL_PATH, "results", "comparison"))
