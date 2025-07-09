@@ -45,7 +45,7 @@ if __name__ == "__main__":
     )
 
     val_cases = [case["case_id"] for case in val_data]
-    test_cases = [f"case_{i:05d}" for i in range(211, 301)]
+    test_cases = [f"case_{i:05d}" for i in range(210, 299)]
 
     # Load the model
     model = UNETR(  # patch size fixed to 16x16 for 2D
