@@ -22,6 +22,32 @@ class LoadNumpy(MapTransform):
                 array = np.expand_dims(array, axis=0)
             d[key] = array
         return d
+
+class PrepareSliceData(MapTransform):
+    def __init__(self, keys):
+        super().__init__(keys)
+
+    def __call__(self, data):
+        d = dict(data)
+        for key in self.keys:
+            array = d[key]
+            
+            # Ensure we have a numpy array
+            if not isinstance(array, np.ndarray):
+                array = np.array(array)
+            
+            # Ensure channel first dimension
+            if array.ndim == 2:  # (H, W) → (1, H, W) 
+                array = np.expand_dims(array, axis=0)
+            elif array.ndim == 3 and array.shape[0] != 1:  # (H, W, C) → (C, H, W)
+                array = np.transpose(array, (2, 0, 1))
+            
+            # Ensure float32 dtype for images, keep original for labels
+            if key == "image":
+                array = array.astype(np.float32)
+            
+            d[key] = array
+        return d
     
 
 def get_2D_transforms():
@@ -79,6 +105,25 @@ def get_2D_transforms():
     ])
 
     return augment_transforms, no_aug_transforms
+
+def get_2D_test_transforms():
+
+    test_transforms = Compose([
+        PrepareSliceData(keys=["image"]),  # Add channel dimension
+        ResizeD(keys=["image"], spatial_size=(512, 512), mode=["bilinear"]),
+        ScaleIntensityRanged(
+            keys=["image"],
+            a_min=-200, a_max=500,  # Clamp CT values
+            b_min=-1.0, b_max=1.0,
+            clip=True,
+        ),
+
+        # Convert to tensor
+        EnsureTyped(keys=["image"], dtype=torch.float32),
+        ToTensord(keys=["image"])            # Convert to PyTorch tensors
+    ])
+
+    return test_transforms
 
 
 def get_3D_transforms():
