@@ -85,7 +85,7 @@ Note: Run this script in the conda environment `project_env`!
 
 ### Training the 3D Residual U-Net
 ```bash
-# Notebook version (recommended for development)
+# Notebook version (recommended for development), otherwise run in Jupyter browser
 jupyter notebook train_3d_unet.ipynb
 
 # Script version
@@ -102,7 +102,7 @@ python train_unetr.py
 
 ### Evaluation
 ```bash
-# Evaluate 3D U-Net
+# Evaluate 3D U-Net, otherwise run in Jupyter browser
 jupyter notebook eval_unet.ipynb
 
 # Evaluate 2D U-NETR
@@ -131,7 +131,6 @@ python eval_unetr.py
 
 ### Hyperparameter Optimization
 - `unetr_hyperparameter_search.py`: Automated hyperparameter tuning for U-NETR
-- Multiple git branches contain 3D U-Net hyperparameter experiments
 
 ## Note on Hyperparameter search
 
