@@ -136,6 +136,22 @@ python eval_unetr.py
 
 While the exploratory hyperparameter search for Unetr was conducted via unetr_hyperparameter_search.py, the hyperparameter search for 3D residual U-Net was conducted via different iterations of the script using different branches as part of this GitHub repository.
 
+## Monitoring
+
+For 3D Residual U-Net, the model was monitored via Weights and Biases (https://wandb.ai/).
+This is optional but nice-to-have.
+
+To enable monitoring, install
+
+```bash
+pip install wandb
+```
+
+Note: `wandb` is already part of requirements_full.txt
+
+And set the flag `use_wandb` to `True` in `train_kits19_model` methods to activate it. You may amend the `wandb_project` and `wandb_notes` if you want.
+
+
 ## Contributing
 
 This project was developed as part of a Computer Vision course project at the University of Cologne.
