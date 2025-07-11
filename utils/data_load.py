@@ -135,6 +135,37 @@ def get_case_dataset(case, data_dir, transforms, num_workers):
 
     return val_loader, image, segmentation
 
+def get_case_dataset_3d(case, data_dir, transforms, num_workers):
+    """
+    Get dataset for 3D case processing that maintains consistency with evaluate_predictions.
+    Returns tensors that work with existing evaluate_predictions function.
+    """
+    imaging_path = os.path.join(data_dir, case, "imaging.nii.gz")
+    segmentation_path = os.path.join(data_dir, case, "segmentation.nii.gz")
+    
+    # Create data list with single entry for the full volume
+    data_list = [{
+        "image": imaging_path, 
+        "label": segmentation_path, 
+        "case_id": case
+    }]
+    
+    # Create dataset and dataloader
+    val_ds = Dataset(data=data_list, transform=transforms)
+    val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
+    
+    # Also get the transformed data for ground truth comparison
+    # We need to extract the transformed label from the dataset
+    transformed_data = val_ds[0]  # Get the first item only
+    
+    # Extract the transformed image and label tensors
+    transformed_label = transformed_data["label"]
+    
+    # Load original image
+    original_image = nib.load(imaging_path)
+    
+    return val_loader, original_image, transformed_label
+
 
 def get_test_case(case, data_dir, transforms, num_workers):
     

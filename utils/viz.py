@@ -7,7 +7,7 @@ import nibabel as nib
 from skimage import measure
 from pathlib import Path
 
-def plot_segmentation_comparison(segmentation, prediction, tumor_dice, kidney_dice, case, figsize=(25, 15), output_path=None):
+def plot_segmentation_comparison(segmentation, prediction, tumor_dice, kidney_dice, case, figsize=(25, 15), output_path=None, model_type="2d"):
     """
     Create side-by-side comparison of ground truth and prediction
     
@@ -15,21 +15,23 @@ def plot_segmentation_comparison(segmentation, prediction, tumor_dice, kidney_di
     segmentation: Ground truth segmentation
     prediction: Predicted segmentation
     figsize: Figure size for the comparison plot
+    model_type: "2d" for 2D UNETR, "3d" for 3D U-Net (for future orientation fixes)
     """
     
-        
     fig = plt.figure(figsize=figsize)
     
     # Ground truth subplot
     ax1 = fig.add_subplot(121, projection='3d')
     axis_limits = plot_single_segmentation(segmentation, ax1, title="Ground Truth", 
-                           format_dict={1: ('lightgray', 0.2), 2: ('orangered', 0.8)})
+                           format_dict={1: ('lightgray', 0.2), 2: ('orangered', 0.8)},
+                           model_type=model_type)
 
     # Prediction subplot
     ax2 = fig.add_subplot(122, projection='3d')
     plot_single_segmentation(segmentation, ax2, title="Prediction",
                            format_dict={1: ('lightgray', 0.2), 2: ('orangered', 0.8)}, 
-                           prediction=prediction, axis_limits=axis_limits)
+                           prediction=prediction, axis_limits=axis_limits,
+                           model_type=model_type)
 
     fig.text(0.5, 0.88, f"Segmentation Comparison {case} | Tumor Dice: {tumor_dice:.2f} | Kidney Dice: {kidney_dice:.2f}", 
              fontsize=35, ha='center', va='top')
@@ -44,9 +46,12 @@ def plot_segmentation_comparison(segmentation, prediction, tumor_dice, kidney_di
     plt.show()
 
 
-def plot_single_segmentation(segmentation, ax, title="", format_dict=None, prediction=None, axis_limits=None):
+def plot_single_segmentation(segmentation, ax, title="", format_dict=None, prediction=None, axis_limits=None, model_type="2d"):
     """
     Helper function to plot a single segmentation on a given axis
+    
+    Args:
+        model_type: "2d" for 2D UNETR, "3d" for 3D U-Net (for future orientation fixes)
     """
     if format_dict is None:
         format_dict = {1: ('blue', 0.6), 2: ('red', 0.8)}
@@ -64,8 +69,18 @@ def plot_single_segmentation(segmentation, ax, title="", format_dict=None, predi
     if prediction is not None:
         volume = prediction
 
-    volume = np.transpose(volume, (1, 2, 0))  # Transpose to match (Y, X, Z) order
-    spacing = (spacing[1], spacing[2], spacing[0])
+    # Model-specific orientation handling
+    if model_type == "3d":
+        volume = np.transpose(volume, (2, 0, 1))
+        volume = np.flip(volume, axis=0)
+        volume = np.flip(volume, axis=1)
+        volume = np.flip(volume, axis=2)
+        spacing = (spacing[2], spacing[0], spacing[1])
+        
+    else:  # model_type == "2d"
+        print("Applying 2D UNETR orientation...")
+        volume = np.transpose(volume, (1, 2, 0))  # (Y, X, Z)
+        spacing = (spacing[1], spacing[2], spacing[0])
 
     # Plot each class
     for class_id, (color, alpha) in format_dict.items():
@@ -105,16 +120,54 @@ def plot_single_segmentation(segmentation, ax, title="", format_dict=None, predi
     }
 
 
-def plot_predictions_3D(random_val_data, output_path=None):
+def plot_predictions_3D(random_val_data, output_path=None, model_type="2d"):
+    """
+    Plot 3D predictions with proper tensor/numpy handling for both 2D UNETR and 3D U-Net
+    
+    Args:
+        random_val_data: Dictionary containing validation data
+        output_path: Path to save plots
+        model_type: "2d" for 2D UNETR, "3d" for 3D U-Net
+    """
     for case_id, case_data in random_val_data.items():
         image = case_data["image"]
         ground_truth = case_data["ground_truth"]
+        predictions = case_data["predictions"]
         
-        predictions = case_data["predictions"].numpy()
+        # Handle ground_truth: convert torch tensor to numpy if needed
+        if hasattr(ground_truth, 'numpy'):
+            # It's a torch tensor
+            ground_truth_np = ground_truth.numpy()
+        elif hasattr(ground_truth, 'get_fdata'):
+            # It's a NIfTI image
+            ground_truth_np = ground_truth.get_fdata()
+        else:
+            # Already numpy
+            ground_truth_np = ground_truth
+        
+        # Handle predictions: convert torch tensor to numpy if needed  
+        if hasattr(predictions, 'numpy'):
+            predictions_np = predictions.numpy()
+        else:
+            predictions_np = predictions
+        
+        # Remove channel dimension if present (shape might be [1, D, H, W])
+        if ground_truth_np.ndim == 4 and ground_truth_np.shape[0] == 1:
+            ground_truth_np = ground_truth_np.squeeze(0)  # Remove channel dim
+        
+        if predictions_np.ndim == 4 and predictions_np.shape[0] == 1:
+            predictions_np = predictions_np.squeeze(0)  # Remove channel dim
+        
+        # Get DICE scores
         tumor_dice = case_data.get("tumor_dice", 0.0)
         kidney_dice = case_data.get("kidney_dice", 0.0)
-
-        plot_segmentation_comparison(ground_truth, predictions, tumor_dice, kidney_dice, case_id, output_path=output_path)
+        
+        print(f"Plotting {case_id}: GT shape {ground_truth_np.shape}, Pred shape {predictions_np.shape}")
+        
+        plot_segmentation_comparison(
+            ground_truth_np, predictions_np, tumor_dice, kidney_dice, case_id, 
+            output_path=output_path, model_type=model_type
+        )
 
 
 def plot_test_slices(

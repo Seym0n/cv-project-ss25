@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import nibabel as nib
-
+from monai.inferers import sliding_window_inference
 import scipy.ndimage as ndi
 
 
@@ -35,6 +35,37 @@ def get_case_predictions(model, case_dataset, device):
 
     return post_processed
 
+def get_case_predictions_3d(model, case_dataset, device):
+    """
+    Get predictions for a 3D case using sliding window inference.
+    Returns predictions as torch tensor (for evaluate_predictions compatibility).
+    """
+    model.eval()
+    
+    with torch.no_grad():
+        for batch_data in case_dataset:
+            inputs = batch_data["image"].to(device)
+            
+            # Use sliding window inference with the same parameters as training
+            outputs = sliding_window_inference(
+                inputs=inputs,
+                roi_size=(80, 160, 160),
+                sw_batch_size=1,
+                overlap=0.25,
+                predictor=model
+            )
+            
+            # Convert to predictions using argmax (same as training)
+            outputs_soft = torch.softmax(outputs, dim=1)
+            predictions = torch.argmax(outputs_soft, dim=1, keepdim=True)
+            
+            # Remove batch dimension: [1, 1, D, H, W] -> [1, D, H, W]
+            vol = predictions.cpu().squeeze(0)  # Shape: [1, D, H, W]
+            
+            # Apply post-processing (same as 2D version)
+            post_processed = post_process_prediction(vol.squeeze(0))  # Remove channel dim for post-processing
+            
+            return post_processed
 
 def evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=False, exclude_background_slices=False):
     """
