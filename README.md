@@ -153,6 +153,8 @@ And login to wandb. The instruction to log in is detailed in Weights & Biases da
 
 And set the flag `use_wandb` to `True` in `train_kits19_model` methods to activate it. You may amend the `wandb_project` and `wandb_notes` if you want.
 
+<img width="1794" height="632" alt="image" src="https://github.com/user-attachments/assets/83e37667-9f36-4580-bc05-7790efa1417a" />
+
 
 ## Contributing
 
