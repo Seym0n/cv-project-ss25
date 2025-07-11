@@ -92,6 +92,9 @@ python train_3d_unet.py
 ```
 
 ### Training the 2D U-NETR
+
+Note: Please run `prepare_2D_dataset.py` before!
+
 ```bash
 python train_unetr.py
 ```
