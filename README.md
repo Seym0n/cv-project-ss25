@@ -68,13 +68,14 @@ Note: Installing requirements other than this leads to problem fetching the data
 ```bash
 git clone https://github.com/neheller/kits19
 cd kits19
-pip install -r requirements.txt
 ```
 
 2. **Download the imaging data:**
 ```bash
 python -m starter_code.get_imaging
 ```
+
+Note: Run this script in the conda environment `project_env`!
 
 3. **Update data paths:**
    - Search for `kits19/data` references in the project files
