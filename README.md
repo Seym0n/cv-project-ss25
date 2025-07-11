@@ -157,3 +157,7 @@ And set the flag `use_wandb` to `True` in `train_kits19_model` methods to activa
 ## Contributing
 
 This project was developed as part of a Computer Vision course project at the University of Cologne.
+
+## References
+
+For the training, we use the models (for both 2D and 3D models) from MONAI v1.5.0 (https://github.com/Project-MONAI/MONAI) and the dataset from https://github.com/neheller/kits19 (see guide above).
