@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
     val_data = {}
     for case in tqdm(val_cases):
-            
+
             case_dataset, case_image, case_label = get_case_dataset(case, DATA_ROOT, no_aug_transforms, NUM_WORKERS)
             case_predicitions = get_case_predictions(model, case_dataset, device)
 
@@ -73,19 +73,24 @@ if __name__ == "__main__":
                 "image": case_image,
                 "ground_truth": case_label,
                 "predictions": case_predicitions
-            }    
-    
+            }
+
 
     # Get evaluation metrics
-    metrics_standard_nobg, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=False, exclude_background_slices=False)
+    metrics_standard_nofpbg, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=False, exclude_background_slices=True)
+    metrics_standard_nobg, _ = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=False, exclude_background_slices=True)
+    metrics_standard_nofp, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=False, exclude_background_slices=False)
     metrics_slices, _ = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=True, exclude_background_slices=False)
-    metrics_slices_nofp, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=True, exclude_background_slices=True)
-    metrics_slices_nobg, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=True, exclude_background_slices=True)
+    metrics_slices_nofpbg, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=True, exclude_background_slices=True)
+    metrics_slices_nobg, _ = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=True, exclude_background_slices=True)
+    metrics_slices_nofp, _ = evaluate_predictions(val_data, exclude_false_positives=True, slice_wise=True, exclude_background_slices=False)
     metrics_standard, val_with_scores = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=False, exclude_background_slices=False)
 
+    # save as .pt
+    torch.save(val_with_scores, "validation_predictions.pt")
 
     # save in .csv
-    results = [metrics_standard, metrics_standard_nobg, metrics_slices, metrics_slices_nofp, metrics_slices_nobg]
+    results = [metrics_standard, metrics_standard_nobg, metrics_standard_nofpbg, metrics_slices, metrics_slices_nofp, metrics_slices_nobg, metrics_slices_nofpbg]
     df = pd.DataFrame(results)
     os.makedirs(os.path.join(MODEL_PATH, "results"), exist_ok=True)
     df.to_csv(os.path.join(MODEL_PATH, "results", "eval_results.csv"), index=False)
@@ -121,8 +126,3 @@ if __name__ == "__main__":
         }
 
     plot_test_slices(test_data, slice_selection='evenly_spaced', output_path=os.path.join(MODEL_PATH, "results", "slices"))
-
-
-
-
-    
