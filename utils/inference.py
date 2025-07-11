@@ -46,7 +46,7 @@ def get_case_predictions_3d(model, case_dataset, device):
         for batch_data in case_dataset:
             inputs = batch_data["image"].to(device)
             
-            # Use sliding window inference with the same parameters as training
+            # Use sliding window inference with the same parameters as in training
             outputs = sliding_window_inference(
                 inputs=inputs,
                 roi_size=(80, 160, 160),
@@ -55,15 +55,15 @@ def get_case_predictions_3d(model, case_dataset, device):
                 predictor=model
             )
             
-            # Convert to predictions using argmax (same as training)
+            # Convert to predictions using argmax (same as in training)
             outputs_soft = torch.softmax(outputs, dim=1)
             predictions = torch.argmax(outputs_soft, dim=1, keepdim=True)
             
             # Remove batch dimension: [1, 1, D, H, W] -> [1, D, H, W]
-            vol = predictions.cpu().squeeze(0)  # Shape: [1, D, H, W]
+            vol = predictions.cpu().squeeze(0)  # Output Shape: [1, D, H, W]
             
-            # Apply post-processing (same as 2D version)
-            post_processed = post_process_prediction(vol.squeeze(0))  # Remove channel dim for post-processing
+            # Apply post-processing
+            post_processed = post_process_prediction(vol.squeeze(0))
             
             return post_processed
 
@@ -98,8 +98,14 @@ def evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=Fal
 
         predictions = case_data["predictions"]
 
+        # Remove channel dimension from BOTH ground truth and predictions
         if predictions.ndim == 4:
             predictions = predictions.squeeze(0)
+        
+        # Remove channel dimension from ground truth if present
+        if ground_truth.ndim == 4:
+            ground_truth = ground_truth.squeeze(0)
+        
 
         def dice_score(pred, gt, exclude_fp=False):
             """Calculate DICE score with optional false positive exclusion."""
@@ -156,7 +162,7 @@ def evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=Fal
                 kidney_dice_scores.append(kidney_dice.item() if torch.is_tensor(kidney_dice) else kidney_dice)
                 kidney_dice_case.append(kidney_dice.item() if torch.is_tensor(kidney_dice) else kidney_dice)
 
-                # TUMOR DICE: Always calculated, following KiTS19 protocol
+                # TUMOR DICE: calculated following KiTS19 paper
                 tumor_pred_slice = (pred_slice == 2).float()
                 tumor_label_slice = (gt_slice == 2).float()
                 
