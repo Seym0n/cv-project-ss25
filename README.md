@@ -149,6 +149,8 @@ pip install wandb
 
 Note: `wandb` is already part of requirements_full.txt
 
+And login to wandb. The instruction to log in is detailed in Weights & Biases dashboard.
+
 And set the flag `use_wandb` to `True` in `train_kits19_model` methods to activate it. You may amend the `wandb_project` and `wandb_notes` if you want.
 
 
