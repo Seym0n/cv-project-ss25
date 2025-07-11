@@ -1,64 +1,138 @@
-# Organ and Tumor Segmentation on CT
+# 3D Kidney and Tumor Segmentation using Deep Learning
 
-In this project, we deal with the segmentation of organs, in particular kidneys, and tumors. We train two different neural networks on 3D CT scan images and compare their performance using the DICE score.
+This project implements and compares two deep learning architectures for automatic segmentation of kidneys and kidney tumors from 3D CT scans using the KiTS19 dataset. We evaluate a 3D residual U-Net against a 2D U-NETR (Vision Transformer) to assess their performance on this challenging medical image segmentation task.
 
-For the dataset, we use the images from the KiTS19 challenge which contain images from 210 patients (further denoted as samples) from three different planes (coronal, sagittal and axial plane).
+## Project Overview
+
+This project trains and compares two neural network architectures:
+
+- **3D Residual U-Net**: 3D Residual U-Net approach
+- **2D U-NETR**: Vision Transformer-based approach
+
+Both models are implemented using the MONAI library (v1.5) and evaluated using DICE score metrics and visualizations in the evaluation.
+
+## Dataset
+
+We use the [KiTS19 Challenge dataset](https://kits19.grand-challenge.org) which contains:
+- **210 training cases** with CT scans and expert annotations
+- **90 test cases** for evaluation
+- High-resolution 3D CT images (coronal, sagittal, axial) with kidney and tumor segmentations
 
 |<img src="https://public.grand-challenge-user-content.org/logos/challenge/360/Screenshot_from_2019-01-02_17-23-36.x20.jpeg" alt="KiTS19 3D Scan" width="300">|<img src="https://github.com/user-attachments/assets/65944cee-b6f6-4ca9-9f90-ee2db74e31d5" alt="Coronal, Sagittal and Axial Plane" width="300"> |
 |-|-|
 
+### Data Structure
+```
+data/
+├── case_00000/
+│   ├── imaging.nii.gz
+│   └── segmentation.nii.gz
+├── case_00001/
+│   ├── imaging.nii.gz
+│   └── segmentation.nii.gz
+...
+└── kits.json
+```
+
+Segmentation labels: 0 = background, 1 = kidney, 2 = tumor
+
 ## Installation
 
-### Python Packages
+### Prerequisites
+- Python 3.9+
+- CUDA-compatible GPU (recommended for training)
+- Miniconda3 version 23.5.2-0
 
-To get started, install either requirements_full.txt or requirements_minimal.txt in a fresh Conda Project Environment.
-We used the Miniconda3 version 23.5.2-0.
+### Environment Setup
 
-#### Create environment
-
-```
+1. **Create a new conda environment:**
+```bash
 conda create --prefix ~/project_env python=3.9
 conda activate ~/project_env
+```
+
+2. **Install dependencies:**
+```bash
+# For minimal installation
 pip install -r requirements_minimal.txt
+
+# For full installation with all development tools
+pip install -r requirements_full.txt
 ```
 
-### KiTS19 CT Scan images
+Note: Installing requirements other than this leads to problem fetching the dataset!
 
-In order to run the training, we first need the dataset of images.
-This can be downloaded via the following script of https://github.com/neheller/kits19
+### Dataset Download
 
-```
+1. **Clone the KiTS19 repository:**
+```bash
 git clone https://github.com/neheller/kits19
 cd kits19
-pip3 install -r requirements.txt
-python3 -m starter_code.get_imaging
+pip install -r requirements.txt
 ```
 
-For seamless download, activate the dedicated conda project environment and run `python3 -m starter_code.get_imaging` inside the environment.
+2. **Download the imaging data:**
+```bash
+python -m starter_code.get_imaging
+```
 
-Note: The package `nibabel` may serve problems from version 5.0.0, the preferred version `4.0.2` is part of the requirement files (see above).
+3. **Update data paths:**
+   - Search for `kits19/data` references in the project files
+   - Replace with your local dataset path (e.g., `path/to/your/kits19/data`)
 
+## Quick Start
 
-Once the dataset has been downloaded, find recursively in this directory for `kits19/data` (via VSCode Search) and replace the full path with the path from your locally downloaded dataset that contains `.../kits19/data` (if parent directory was not amended) or `../data` (if parent directory was amended).
+### Training the 3D Residual U-Net
+```bash
+# Notebook version (recommended for development)
+jupyter notebook train_3d_unet.ipynb
 
-## Overview
+# Script version
+python train_3d_unet.py
+```
 
-- 2D_data_stats.ipynb: Exploratory analysis between background, kidney and tumor
-- dataset_statistics.ipynb: Exploratory analysis of the dataset, such as slices per case, density comparison via HU, proportions of kidney vs. tumor, ...
-- eval_unet.ipynb: Post evaluation of the 3D residual U-Net on the validation set. Shows ground truth and prediction in a visualized 3D space
-- eval_unetr.py: Post evaluation of the 2d U-Netr on the validation set. Shows ground truth and prediction in a visualized 3D space and randomly selected slices for comparison
-- prepare_2D_dataset.py: Prepare 2D training by saving each image and label from a slice per case in a dedicated folder
-- requirement_full.txt: Full requirement files, extracted via AI monitoring https://wandb.ai/
-- train_3d_unet.ipynb: Notebook script to train the 3D residual U-Net.
-- train_3d_unet.py: Equivalent of train_3d_unet.ipynb but as Python script
-- train_unetr.py: Script to train the 2D U-Netr
-- unetr_hyperparameter_search.py: Exploratory analysis of hyperparameter search for Unetr
-- utils/data_load.py: Loads the image data into the DataLoader classes. Contains script for loading the data for evaluation and pre-processing scripts of the data.
-- utils/inference.py: Inference/Prediction methods for the evaluation
-- utils/train_utils.py: Contains the training and post-training validation script, both for 2D U-Netr and 3D residual U-Net
-- utils/transforms.py: Contains the transformation script of the data via MonAI pipeline
-- utils/viz.py: Contains the scripts for the visualization part of the evaluation
+### Training the 2D U-NETR
+```bash
+python train_unetr.py
+```
 
-## Note on hyperparameter search
+### Evaluation
+```bash
+# Evaluate 3D U-Net
+jupyter notebook eval_unet.ipynb
+
+# Evaluate 2D U-NETR
+python eval_unetr.py
+```
+
+## Project Structure
+
+### Core Files
+- `train_3d_unet.ipynb` / `train_3d_unet.py`: 3D Residual U-Net training implementation
+- `train_unetr.py`: 2D U-NETR training script
+- `eval_unet.ipynb`: 3D U-Net evaluation with 3D visualizations
+- `eval_unetr.py`: 2D U-NETR evaluation with 3D visualizations and slice-by-slice comparisons
+
+### Data Analysis
+- `dataset_statistics.ipynb`: Comprehensive dataset analysis (slice counts, HU distributions, class proportions)
+- `2D_data_stats.ipynb`: 2D slice-level analysis of background, kidney, and tumor regions
+- `prepare_2D_dataset.py`: Converts 3D volumes to 2D slices for U-NETR training
+
+### Utilities
+- `utils/data_load.py`: DataLoader implementations and preprocessing pipelines
+- `utils/transforms.py`: MONAI-based data augmentation and preprocessing transforms
+- `utils/train_utils.py`: Training loops and validation routines for both architectures
+- `utils/inference.py`: Model inference and prediction utilities
+- `utils/viz.py`: 3D and 2D visualization tools for qualitative evaluation
+
+### Hyperparameter Optimization
+- `unetr_hyperparameter_search.py`: Automated hyperparameter tuning for U-NETR
+- Multiple git branches contain 3D U-Net hyperparameter experiments
+
+## Note on Hyperparameter search
 
 While the exploratory hyperparameter search for Unetr was conducted via unetr_hyperparameter_search.py, the hyperparameter search for 3D residual U-Net was conducted via different iterations of the script using different branches as part of this GitHub repository.
+
+## Contributing
+
+This project was developed as part of a Computer Vision course project at the University of Cologne.
