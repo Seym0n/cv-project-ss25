@@ -11,3 +11,4 @@ nibabel==4.0.2
 imageio>=2.0.0
 requests>=2.25.0
 monai>=1.0.0
+seaborn==0.13.2
