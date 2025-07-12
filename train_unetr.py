@@ -65,5 +65,6 @@ if __name__ == "__main__":
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
 
     train_losses, val_losses, kidney_dices, tumor_dices = train_kits19_model(
-        model, loss_fn, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path="best0307.pth"
+        model, loss_fn, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path="best0307.pth",
+        type="2d-vit", use_wandb=False, scheduler_warmup_steps= max(3, int(0.1 * NUM_EPOCHS)), scheduler_cycles=0.5
         )

@@ -116,7 +116,7 @@ if __name__ == "__main__":
             weight_str = "-".join([f"{w:.2f}" for w in weight])
             save_path = f"best_{loss_fn.__name__}_{weight_str}_{LR}.pth"
             train_losses, val_losses, kidney_dices, tumor_dices = train_kits19_model(
-                model, loss_fn_instance, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path=save_path
+                model, loss_fn_instance, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path=save_path, type="2d-vit", use_wandb=False, scheduler_warmup_steps= max(3, int(0.1 * NUM_EPOCHS)), scheduler_cycles=0.5
             )
             print(f"   Finished training with {loss_fn.__name__} and LR={LR} and weights={weight_str}", flush=True)
 
