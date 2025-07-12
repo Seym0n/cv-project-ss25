@@ -7,29 +7,38 @@ import nibabel as nib
 from skimage import measure
 from pathlib import Path
 
-def plot_segmentation_comparison(segmentation, prediction, tumor_dice, kidney_dice, case, figsize=(25, 15), output_path=None):
+def plot_segmentation_comparison(segmentation, prediction, tumor_dice, kidney_dice, case, figsize=(25, 15), output_path=None, model_type="2d"):
     """
-    Create side-by-side comparison of ground truth and prediction
+    Create side-by-side 3D comparison of ground truth and prediction segmentations.
     
-    Parameters:
-    segmentation: Ground truth segmentation
-    prediction: Predicted segmentation
-    figsize: Figure size for the comparison plot
+    Args:
+        segmentation (np.ndarray or nibabel.Nifti1Image): Ground truth segmentation volume.
+        prediction (np.ndarray): Predicted segmentation volume.
+        tumor_dice (float): DICE score for tumor class.
+        kidney_dice (float): DICE score for kidney class.
+        case (str): Case identifier for the plot title.
+        figsize (tuple): Figure size (width, height) for the comparison plot.
+        output_path (str or Path, optional): Directory path to save the plot. If None, plot is only displayed.
+        model_type (str): Model type - "2d" for 2D UNETR, "3d" for 3D U-Net (affects orientation).
+    
+    Returns:
+        None
     """
     
-        
     fig = plt.figure(figsize=figsize)
     
     # Ground truth subplot
     ax1 = fig.add_subplot(121, projection='3d')
     axis_limits = plot_single_segmentation(segmentation, ax1, title="Ground Truth", 
-                           format_dict={1: ('lightgray', 0.2), 2: ('orangered', 0.8)})
+                           format_dict={1: ('lightgray', 0.2), 2: ('orangered', 0.8)},
+                           model_type=model_type)
 
     # Prediction subplot
     ax2 = fig.add_subplot(122, projection='3d')
     plot_single_segmentation(segmentation, ax2, title="Prediction",
                            format_dict={1: ('lightgray', 0.2), 2: ('orangered', 0.8)}, 
-                           prediction=prediction, axis_limits=axis_limits)
+                           prediction=prediction, axis_limits=axis_limits,
+                           model_type=model_type)
 
     fig.text(0.5, 0.88, f"Segmentation Comparison {case} | Tumor Dice: {tumor_dice:.2f} | Kidney Dice: {kidney_dice:.2f}", 
              fontsize=35, ha='center', va='top')
@@ -44,9 +53,21 @@ def plot_segmentation_comparison(segmentation, prediction, tumor_dice, kidney_di
     plt.show()
 
 
-def plot_single_segmentation(segmentation, ax, title="", format_dict=None, prediction=None, axis_limits=None):
+def plot_single_segmentation(segmentation, ax, title="", format_dict=None, prediction=None, axis_limits=None, model_type="2d"):
     """
-    Helper function to plot a single segmentation on a given axis
+    Helper function to plot a single 3D segmentation on a given matplotlib 3D axis.
+    
+    Args:
+        segmentation (np.ndarray or nibabel.Nifti1Image): Segmentation volume to plot.
+        ax (matplotlib.axes._subplots.Axes3DSubplot): 3D matplotlib axis to plot on.
+        title (str): Title to display on the plot.
+        format_dict (dict, optional): Dictionary mapping class IDs to (color, alpha) tuples.
+        prediction (np.ndarray, optional): If provided, plots this instead of segmentation.
+        axis_limits (dict, optional): Dictionary with 'xlim', 'ylim', 'zlim' keys for axis limits.
+        model_type (str): Model type - "2d" for 2D UNETR, "3d" for 3D U-Net (affects orientation).
+    
+    Returns:
+        dict: Dictionary containing the axis limits ('xlim', 'ylim', 'zlim').
     """
     if format_dict is None:
         format_dict = {1: ('blue', 0.6), 2: ('red', 0.8)}
@@ -64,8 +85,18 @@ def plot_single_segmentation(segmentation, ax, title="", format_dict=None, predi
     if prediction is not None:
         volume = prediction
 
-    volume = np.transpose(volume, (1, 2, 0))  # Transpose to match (Y, X, Z) order
-    spacing = (spacing[1], spacing[2], spacing[0])
+    # Model-specific orientation handling
+    if model_type == "3d":
+        volume = np.transpose(volume, (2, 0, 1))
+        volume = np.flip(volume, axis=0)
+        volume = np.flip(volume, axis=1)
+        volume = np.flip(volume, axis=2)
+        spacing = (spacing[2], spacing[0], spacing[1])
+        
+    else:  # model_type == "2d"
+        print("Applying 2D UNETR orientation...")
+        volume = np.transpose(volume, (1, 2, 0))  # (Y, X, Z)
+        spacing = (spacing[1], spacing[2], spacing[0])
 
     # Plot each class
     for class_id, (color, alpha) in format_dict.items():
@@ -105,16 +136,58 @@ def plot_single_segmentation(segmentation, ax, title="", format_dict=None, predi
     }
 
 
-def plot_predictions_3D(random_val_data, output_path=None):
+def plot_predictions_3D(random_val_data, output_path=None, model_type="2d"):
+    """
+    Plot 3D predictions with proper tensor/numpy handling for both 2D UNETR and 3D U-Net models.
+    
+    Args:
+        random_val_data (dict): Dictionary containing validation data with case IDs as keys.
+                               Each case should have 'image', 'ground_truth', 'predictions' keys.
+        output_path (str or Path, optional): Directory path to save plots. If None, plots are only displayed.
+        model_type (str): Model type - "2d" for 2D UNETR, "3d" for 3D U-Net (affects orientation).
+    
+    Returns:
+        None
+    """
     for case_id, case_data in random_val_data.items():
         image = case_data["image"]
         ground_truth = case_data["ground_truth"]
+        predictions = case_data["predictions"]
         
-        predictions = case_data["predictions"].numpy()
+        # Handle ground_truth: convert torch tensor to numpy if needed
+        if hasattr(ground_truth, 'numpy'):
+            # It's a torch tensor
+            ground_truth_np = ground_truth.numpy()
+        elif hasattr(ground_truth, 'get_fdata'):
+            # It's a NIfTI image
+            ground_truth_np = ground_truth.get_fdata()
+        else:
+            # Already numpy
+            ground_truth_np = ground_truth
+        
+        # Handle predictions: convert torch tensor to numpy if needed  
+        if hasattr(predictions, 'numpy'):
+            predictions_np = predictions.numpy()
+        else:
+            predictions_np = predictions
+        
+        # Remove channel dimension if present (shape might be [1, D, H, W])
+        if ground_truth_np.ndim == 4 and ground_truth_np.shape[0] == 1:
+            ground_truth_np = ground_truth_np.squeeze(0)  # Remove channel dim
+        
+        if predictions_np.ndim == 4 and predictions_np.shape[0] == 1:
+            predictions_np = predictions_np.squeeze(0)  # Remove channel dim
+        
+        # Get DICE scores
         tumor_dice = case_data.get("tumor_dice", 0.0)
         kidney_dice = case_data.get("kidney_dice", 0.0)
-
-        plot_segmentation_comparison(ground_truth, predictions, tumor_dice, kidney_dice, case_id, output_path=output_path)
+        
+        print(f"Plotting {case_id}: GT shape {ground_truth_np.shape}, Pred shape {predictions_np.shape}")
+        
+        plot_segmentation_comparison(
+            ground_truth_np, predictions_np, tumor_dice, kidney_dice, case_id, 
+            output_path=output_path, model_type=model_type
+        )
 
 
 def plot_test_slices(
@@ -285,7 +358,17 @@ def plot_test_slices(
             continue
 
 def _select_slices(total_slices, num_slices, selection_method):
-    """Select slice indices based on the specified method."""
+    """
+    Select slice indices based on the specified method.
+    
+    Args:
+        total_slices (int): Total number of slices available in the volume.
+        num_slices (int): Number of slices to select.
+        selection_method (str): Method for slice selection - 'middle', 'evenly_spaced', or 'random'.
+    
+    Returns:
+        list: List of selected slice indices.
+    """
     if selection_method == 'middle':
         # Select slices around the middle
         center = total_slices // 2
@@ -317,7 +400,15 @@ def _select_slices(total_slices, num_slices, selection_method):
         raise ValueError(f"Unknown selection method: {selection_method}")
 
 def _normalize_image(image):
-    """Normalize image for display."""
+    """
+    Normalize image intensities for proper display.
+    
+    Args:
+        image (np.ndarray): Input image array to normalize.
+    
+    Returns:
+        np.ndarray: Normalized image with values in [0, 1] range.
+    """
     if image.dtype == np.uint8:
         return image
     

@@ -12,18 +12,29 @@ import nibabel as nib
 def get_data_list(data_root):
     """
     Get list of all KiTS19 cases for training.
-    Expected structure: data_root/case_XXXXX/imaging.nii.gz, segmentation.nii.gz
+    
+    Args:
+        data_root (str): Root directory containing case folders.
+        
+    Returns:
+        list: List of dictionaries with keys 'image', 'label', 'case_id' for each valid case.
+        Expected structure: data_root/case_XXXXX/imaging.nii.gz, segmentation.nii.gz
     """
+    # Find all case directories matching pattern "case_*"
     case_folders = glob(os.path.join(data_root, "case_*"))
     case_folders.sort()
 
     data_list = []
+    # Iterate through each case folder
     for case_folder in case_folders:
+        # Extract case ID from folder name
         case_id = os.path.basename(case_folder)
 
+        # Build paths to imaging and segmentation files
         imaging_path = os.path.join(case_folder, "imaging.nii.gz")
         segmentation_path = os.path.join(case_folder, "segmentation.nii.gz")
 
+        # Only include cases where both files exist
         if os.path.exists(imaging_path) and os.path.exists(segmentation_path):
             data_list.append({
                 "image": imaging_path,
@@ -116,38 +127,113 @@ def get_2D_data(train_cases, val_cases, data_dir):
 
 
 def get_case_dataset(case, data_dir, transforms, num_workers):
-
+    """
+    Get dataset and dataloader for a specific case's 2D slices along with original NIfTI files.
+    
+    Args:
+        case (str): Case ID (e.g., "case_00000").
+        data_dir (str): Directory containing the prepared 2D data.
+        transforms (callable): Transform to apply to the data.
+        num_workers (int): Number of workers for DataLoader.
+        
+    Returns:
+        tuple: (val_loader, image, segmentation) where:
+            - val_loader: DataLoader for 2D slices
+            - image: Original NIfTI image object
+            - segmentation: Original NIfTI segmentation object
+    """
+    # Get all 2D slice images and labels for the specified case
     images = sorted(glob(f"{data_dir}/{case}/images/*.npy"))
     labels = sorted(glob(f"{data_dir}/{case}/labels/*.npy"))
 
+    # Create data list with slice-level information
     data_list = [{"image": img, "label": lbl, "case_id": case, "slice_num": img.split("/")[-1].split(".")[0]} for img, lbl in zip(images, labels)]
 
+    # Create dataset and dataloader for 2D slices
     val_ds = Dataset(data=data_list, transform=transforms)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
 
-
+    # Load original 3D NIfTI files for reference
     imaging_path = os.path.join(data_dir, case, "imaging.nii.gz")
     segmentation_path = os.path.join(data_dir, case, "segmentation.nii.gz")
 
-    # load nifti files
+    # Load nifti files for header information and metadata
     image = nib.load(imaging_path)
     segmentation = nib.load(segmentation_path)
 
     return val_loader, image, segmentation
 
+def get_case_dataset_3d(case, data_dir, transforms, num_workers):
+    """
+    Get dataloader for 3D case processing for a given case
+    
+    Args:
+        case (str): Case ID (e.g., "case_00000").
+        data_dir (str): Directory containing the NIfTI files.
+        transforms (callable): Transform to apply to the 3D volume.
+        num_workers (int): Number of workers for DataLoader.
+        
+    Returns:
+        tuple: (val_loader, original_image, transformed_label) where:
+            - val_loader: DataLoader for 3D volume
+            - original_image: Original NIfTI image object with metadata
+            - transformed_label: Transformed label tensor for evaluation
+    """
+    # Build paths to 3D NIfTI files
+    imaging_path = os.path.join(data_dir, case, "imaging.nii.gz")
+    segmentation_path = os.path.join(data_dir, case, "segmentation.nii.gz")
+    
+    # Create data list with single entry for the full 3D volume
+    data_list = [{
+        "image": imaging_path, 
+        "label": segmentation_path, 
+        "case_id": case
+    }]
+    
+    # Create dataset and dataloader for 3D volume processing
+    val_ds = Dataset(data=data_list, transform=transforms)
+    val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
+    
+    # Get the transformed data for ground truth comparison
+    # Extract the first (and only) item from the dataset
+    transformed_data = val_ds[0]
+    
+    # Extract the transformed label tensor for evaluation
+    transformed_label = transformed_data["label"]
+    
+    # Load original image with metadata for reconstruction
+    original_image = nib.load(imaging_path)
+    
+    return val_loader, original_image, transformed_label
+
 
 def get_test_case(case, data_dir, transforms, num_workers):
+    """
+    Get dataset and dataloader for test case inference (no labels available).
     
+    Args:
+        case (str): Case ID (e.g., "case_00000").
+        data_dir (str): Directory containing the NIfTI files.
+        transforms (callable): Transform to apply to the data.
+        num_workers (int): Number of workers for DataLoader.
+        
+    Returns:
+        tuple: (test_loader, image_nifti) where:
+            - test_loader: DataLoader for slice-by-slice inference
+            - image_nifti: Original NIfTI image object for reconstruction
+    """
+    # Load the 3D imaging volume for test case (no labels available)
     imaging_path = os.path.join(data_dir, case, "imaging.nii.gz")
     image_nifti = nib.load(imaging_path)
     image_volume = image_nifti.get_fdata(dtype=np.float32)  # (H, W, D)
 
-    # Create list of dicts, one per slice
+    # Create data list with one entry per slice for 2D processing
     data_list = [
         {"image": image_volume[i, :, :], "case_id": case}
         for i in range(image_volume.shape[0])
     ]
 
+    # Create dataset and dataloader for slice-by-slice inference
     test_ds = Dataset(data=data_list, transform=transforms)
     test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=num_workers)
 
@@ -168,16 +254,19 @@ def get_2D_datasets(train_list, val_list, augment_transforms, no_aug_transforms,
     Returns:
         tuple: Training and validation DataLoaders, and their corresponding datasets.
     """
+    # Split training data into tumor and non-tumor cases for different handling
     tumor_list, other_list = upsample_tumor_cases(train_list, n_duplicates=3)  # Upsample tumor cases
 
-    # augment tumor data, but not other data
+    # Apply augmentation to tumor data to improve learning, no augmentation for other data
     tumor_ds = CacheDataset(data=tumor_list, transform=augment_transforms, cache_rate=1.0)
     other_ds = CacheDataset(data=other_list, transform=no_aug_transforms, cache_rate=1.0)
 
-    # combine datasets
+    # Combine tumor and non-tumor datasets for training
     train_ds = ConcatDataset([tumor_ds, other_ds])
+    # Validation dataset without augmentation
     val_ds = CacheDataset(data=val_list, transform=no_aug_transforms, cache_rate=1.0)
 
+    # Create dataloaders with appropriate settings
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=num_workers)
 

@@ -1,40 +1,92 @@
 import torch
 import numpy as np
 import nibabel as nib
-
+from monai.inferers import sliding_window_inference
 import scipy.ndimage as ndi
 
 
 def get_case_predictions(model, case_dataset, device):
     """
-    Get predictions for a single case using the provided model.
+    Get predictions for a single case using the provided model for 2D slice-by-slice inference.
     
     Args:
-        model: The trained model to use for predictions.
-        case_dataset: The dataset containing the case data.
-        device: The device to run the model on (CPU or GPU).
+        model (torch.nn.Module): The trained model to use for predictions.
+        case_dataset (DataLoader): The dataset containing the case data with 2D slices.
+        device (torch.device): The device to run the model on (CPU or GPU).
     
     Returns:
-        A dictionary with the case ID and the predicted segmentation.
+        torch.Tensor: Post-processed prediction volume of shape (slices, H, W) with class labels.
     """
+    # Set model to evaluation mode
     model.eval()
     prediction_volume = []
+    
+    # Disable gradient computation for inference
     with torch.no_grad():
+        # Process each batch (slice) in the dataset
         for batch in case_dataset:
-
+            # Move input data to the specified device
             inputs = batch["image"].to(device)
+            # Forward pass through the model
             outputs = model(inputs)
 
+            # Apply softmax to get class probabilities
             outputs_soft = torch.softmax(outputs, dim=1)
+            # Get predicted class labels using argmax
             predictions = torch.argmax(outputs_soft, dim=1, keepdim=True)
 
+            # Move predictions back to CPU and store
             prediction_volume.append(predictions.cpu())
 
+    # Concatenate all slice predictions and reorder dimensions
     vol = torch.cat(prediction_volume, dim=0).permute(1, 0, 2, 3)
+    # Apply post-processing to remove small artifacts
     post_processed = post_process_prediction(vol.squeeze(0))
 
     return post_processed
 
+def get_case_predictions_3d(model, case_dataset, device):
+    """
+    Get predictions for a 3D case using sliding window inference.
+    
+    Args:
+        model (torch.nn.Module): The trained 3D model to use for predictions.
+        case_dataset (DataLoader): The dataset containing the 3D volume data.
+        device (torch.device): The device to run the model on (CPU or GPU).
+    
+    Returns:
+        torch.Tensor: Post-processed prediction volume of shape (slices, H, W) with class labels.
+    """
+    # Set model to evaluation mode
+    model.eval()
+    
+    # Disable gradient computation for inference
+    with torch.no_grad():
+        # Process the single 3D volume in the dataset
+        for batch_data in case_dataset:
+            # Move 3D volume to the specified device
+            inputs = batch_data["image"].to(device)
+            
+            # Use sliding window inference for memory-efficient 3D processing
+            outputs = sliding_window_inference(
+                inputs=inputs,
+                roi_size=(80, 160, 160),  # Size of sliding window patches
+                sw_batch_size=1,          # Number of patches processed simultaneously
+                overlap=0.25,             # Overlap between adjacent patches
+                predictor=model           # The 3D model to use for prediction
+            )
+            
+            # Convert logits to class probabilities and then to predicted labels
+            outputs_soft = torch.softmax(outputs, dim=1)
+            predictions = torch.argmax(outputs_soft, dim=1, keepdim=True)
+            
+            # Remove batch dimension and move to CPU: [1, 1, D, H, W] -> [1, D, H, W]
+            vol = predictions.cpu().squeeze(0)  # Output Shape: [1, D, H, W]
+            
+            # Apply post-processing to remove small artifacts
+            post_processed = post_process_prediction(vol.squeeze(0))
+            
+            return post_processed
 
 def evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=False, exclude_background_slices=False):
     """
@@ -67,8 +119,14 @@ def evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=Fal
 
         predictions = case_data["predictions"]
 
+        # Remove channel dimension from BOTH ground truth and predictions
         if predictions.ndim == 4:
             predictions = predictions.squeeze(0)
+        
+        # Remove channel dimension from ground truth if present
+        if ground_truth.ndim == 4:
+            ground_truth = ground_truth.squeeze(0)
+        
 
         def dice_score(pred, gt, exclude_fp=False):
             """Calculate DICE score with optional false positive exclusion."""
@@ -125,7 +183,7 @@ def evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=Fal
                 kidney_dice_scores.append(kidney_dice.item() if torch.is_tensor(kidney_dice) else kidney_dice)
                 kidney_dice_case.append(kidney_dice.item() if torch.is_tensor(kidney_dice) else kidney_dice)
 
-                # TUMOR DICE: Always calculated, following KiTS19 protocol
+                # TUMOR DICE: calculated following KiTS19 paper
                 tumor_pred_slice = (pred_slice == 2).float()
                 tumor_label_slice = (gt_slice == 2).float()
                 
@@ -218,40 +276,42 @@ def post_process_prediction(prediction, min_kidney_size=1000):
     for the kidney class (class 1) that are too small to be (part of) kidneys.
 
     Args:
-        prediction: torch.Tensor or np.ndarray of shape (slices, H, W)
-        min_kidney_size: minimum number of voxels for a kidney component to be kept
+        prediction (torch.Tensor or np.ndarray): Prediction mask of shape (slices, H, W) with class labels.
+        min_kidney_size (int): Minimum number of voxels for a kidney component to be kept.
 
     Returns:
-        Post-processed prediction mask (same shape as input).
+        torch.Tensor or np.ndarray: Post-processed prediction mask with same shape and type as input.
     """
+    # Convert tensor to numpy if needed for processing
     if torch.is_tensor(prediction):
         pred_np = prediction.cpu().numpy()
     else:
         pred_np = prediction
 
-    # Only process kidney class (class 1) since tumors are less predictable
+    # Only process kidney class (class 1) since tumors are less predictable in size
     kidney_mask = (pred_np == 1)
 
-    # Find connected components in kidney mask
+    # Find connected components in the kidney mask using 3D connectivity
     labeled, num = ndi.label(kidney_mask)
     
-    # Create mask for components to keep
+    # Create binary mask for components that should be kept
     keep_mask = np.zeros_like(kidney_mask, dtype=bool)
     
     if num > 0:
-        # Calculate size of each component
+        # Calculate the size (number of voxels) of each connected component
         sizes = ndi.sum(kidney_mask, labeled, range(1, num + 1))
         
-        # Keep components that are large enough
+        # Keep only components that meet the minimum size threshold
         for i in range(num):
             if sizes[i] >= min_kidney_size:
                 keep_mask |= (labeled == (i + 1))
 
-    # Update the prediction: remove small kidney components
+    # Create processed prediction by removing small kidney components
     processed = pred_np.copy()
-    processed[(pred_np == 1)] = 0  # Remove all kidney labels
-    processed[keep_mask] = 1       # Set back the large kidney components
+    processed[(pred_np == 1)] = 0  # Remove all original kidney labels
+    processed[keep_mask] = 1       # Restore only the large kidney components
 
+    # Convert back to original tensor type and device if input was a tensor
     if torch.is_tensor(prediction):
         return torch.from_numpy(processed).to(prediction.device)
     return processed

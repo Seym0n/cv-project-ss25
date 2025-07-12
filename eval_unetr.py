@@ -16,7 +16,6 @@ from utils.inference import get_case_predictions, evaluate_predictions
 from utils.viz import plot_predictions_3D, plot_test_slices
 
 # from utils.viz import plot_predictions_3D, plot_test_slices
-import numpy as np
 import random
 
 
