@@ -60,7 +60,17 @@ pip install -r requirements_minimal.txt
 pip install -r requirements_full.txt
 ```
 
-Note: Installing requirements other than this leads to problem fetching the dataset!
+Note: Installing requirements other than this leads to problem fetching the dataset! Sometime, Python package may still be missing due to MONAI, therefore use `requirements_full.txt` or visit https://docs.monai.io/en/latest/installation.html#installing-the-recommended-dependencies
+
+3. **Register kernel:**
+
+Finally, register the kernel to Jupyter via
+
+```bash
+python -m ipykernel install --user --name project_env --display-name "Python (project_env)"
+```
+
+This is necessary when selecting the kernel via Jupyter browser.
 
 ### Dataset Download
 
