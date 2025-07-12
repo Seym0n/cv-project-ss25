@@ -155,6 +155,7 @@ And set the flag `use_wandb` to `True` in `train_kits19_model` methods to activa
 
 <img width="1794" height="632" alt="image" src="https://github.com/user-attachments/assets/83e37667-9f36-4580-bc05-7790efa1417a" />
 
+Otherwise, the training is monitored and outputted to the file `training_progress.json`.
 
 ## Contributing
 
