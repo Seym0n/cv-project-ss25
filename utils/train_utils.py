@@ -12,35 +12,50 @@ except ImportError:
     wandb = None
 
 
-def validate(model, val_loader, loss_function, dice_metric, device, type="2d-vit"):
+def validate(model, val_loader, loss_function, device, type="2d-vit"):
     """
-    Validation function with correct DICE calculation for KiTS19.
-    Key fixes:
-    1. Kidney DICE includes both kidney (1) and tumor (2) labels as foreground
-    2. Uses argmax instead of thresholding softmax outputs
-    3. Proper debugging output
+    Validation function with DICE calculation for KiTS19 challenge.
+    
+    Args:
+        model (torch.nn.Module): The model to validate.
+        val_loader (DataLoader): DataLoader for validation data.
+        loss_function (callable): Loss function to compute validation loss.
+        device (torch.device): Device to run validation on (CPU or GPU).
+        type (str): Model type, either "2d-vit" or "3d-unet".
+    
+    Returns:
+        tuple: (val_loss, kidney_dice_avg, tumor_dice_avg) where:
+            - val_loss: Average validation loss across all batches
+            - kidney_dice_avg: Average kidney DICE score (includes kidney+tumor)
+            - tumor_dice_avg: Average tumor DICE score
     """
+    # Set model to evaluation mode
     model.eval()
     val_loss = 0
     val_batches = 0
 
-    # Separate metrics for each class
+    # Initialize lists to store DICE scores for each class
     kidney_dice_scores = []
     tumor_dice_scores = []
 
+    # Statistics tracking
     cases_with_tumors = 0
     cases_with_false_positive_tumors = 0
 
+    # Disable gradient computation for validation
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(val_loader):
+            # Move data to device
             inputs = batch_data["image"].to(device)
             labels = batch_data["label"].to(device)
 
+            # Forward pass based on model type
             if type == "2d-vit":
-                # For 2D-ViT, we assume inputs are 2D slices
+                # Direct forward pass for 2D Vision Transformer models
                 outputs = model(inputs)
 
             if type == "3d-unet":
+                # Use sliding window inference for 3D U-Net models
                 roi_size = (80, 160, 160)
                 sw_batch_size = 1
 
@@ -52,53 +67,52 @@ def validate(model, val_loader, loss_function, dice_metric, device, type="2d-vit
                     overlap=0.25
                 )
 
+            # Compute validation loss
             loss = loss_function(outputs, labels)
             val_loss += loss.item()
             val_batches += 1
 
-            # Convert outputs to predictions using argma
+            # Convert model outputs to class predictions using argmax
             predictions = torch.argmax(torch.softmax(outputs, dim=1), dim=1, keepdim=True)
 
-            # Process each sample in batch
+            # Process each sample in the batch for DICE calculation
             for batch_sample in range(predictions.shape[0]):
                 pred_sample = predictions[batch_sample].squeeze(0)  # [H, W, D]
                 label_sample = labels[batch_sample].squeeze(0)      # [H, W, D]
 
-
-                # KIDNEY DICE: Include both kidney (1) and tumor (2) as foreground
+                # KIDNEY DICE: Include both kidney (1) and tumor (2) as foreground (as in KiTS19 challenge)
                 kidney_pred = ((pred_sample == 1) | (pred_sample == 2)).float()
                 kidney_label = ((label_sample == 1) | (label_sample == 2)).float()
 
                 def dice_score(pred, gt):
                     """Calculate DICE score with proper edge case handling."""
-
                     if gt.sum() == 0 and pred.sum() == 0:
-                        return 1.0  # Perfect prediction of absence
+                        return 1.0  # Perfect prediction when both are empty
                     elif gt.sum() == 0:
-                        return 0.0  # False positive
+                        return 0.0  # False positive case
                     else:
                         intersection = (pred * gt).sum()
                         return (2.0 * intersection) / (pred.sum() + gt.sum())
 
-                
-
+                # Calculate kidney DICE score
                 kidney_dice = dice_score(kidney_pred, kidney_label)
                 kidney_dice_scores.append(kidney_dice.item() if torch.is_tensor(kidney_dice) else kidney_dice)
 
-                # TUMOR DICE: Always calculated, following KiTS19 protocol
+                # TUMOR DICE: Only tumor class (2) as foreground
                 tumor_pred = (pred_sample == 2).float()
                 tumor_label = (label_sample == 2).float()
                 
+                # Calculate tumor DICE score
                 tumor_dice = dice_score(tumor_pred, tumor_label)
                 tumor_dice_scores.append(tumor_dice.item() if torch.is_tensor(tumor_dice) else tumor_dice)
                 
-                # Track statistics
+                # Track tumor statistics for monitoring
                 if tumor_label.sum() > 0:
                     cases_with_tumors += 1
                 if tumor_label.sum() == 0 and tumor_pred.sum() > 0:
                     cases_with_false_positive_tumors += 1
                 
-                # Debug for first few samples
+                # Debug output for first few samples
                 if batch_idx < 2:
                     print(f"   Sample {batch_idx}: Kidney DICE={kidney_dice:.3f}, Tumor DICE={tumor_dice:.3f}")
                     print(f"     Tumor present: {tumor_label.sum() > 0}, Tumor predicted: {tumor_pred.sum() > 0}")
@@ -114,41 +128,79 @@ def validate(model, val_loader, loss_function, dice_metric, device, type="2d-vit
     return val_loss / val_batches, kidney_dice_avg, tumor_dice_avg
 
 def train_epoch(model, train_loader, optimizer, loss_fn, device, accelerator):
-    """ Train the model for one epoch. """
+    """
+    Train the model for one epoch.
+    
+    Args:
+        model (torch.nn.Module): The model to train.
+        train_loader (DataLoader): DataLoader for training data.
+        optimizer (torch.optim.Optimizer): Optimizer for updating model parameters.
+        loss_fn (callable): Loss function to compute training loss.
+        device (torch.device): Device to run training on (CPU or GPU).
+        accelerator (Accelerator): Hugging Face Accelerator for mixed precision training.
+    
+    Returns:
+        float: Average training loss for the epoch.
+    """
 
+    # Set model to training mode
     model.train()
     epoch_loss = 0
     batch_count = 0
 
+    # Iterate through training batches
     for batch_data in train_loader:
-
+        # Move data to device and ensure correct data types
         inputs = batch_data["image"].to(device)
         labels = batch_data["label"].long().to(device)
 
+        # Forward pass through the model
         outputs = model(inputs)
+        # Calculate loss
         loss = loss_fn(outputs, labels)
 
+        # Backward pass using accelerator for mixed precision
         accelerator.backward(loss)
+        # Update model parameters
         optimizer.step()
+        # Clear gradients for next iteration
         optimizer.zero_grad()
 
+        # Track loss statistics
         epoch_loss += loss.item()
         batch_count += 1
 
+        # Print progress every 1000 batches
         if batch_count % 1000 == 0:
             print(f"Batch {batch_count}/{len(train_loader)}, Loss: {loss.item():.4f}", flush=True)
 
+    # Return average loss for the epoch
     return epoch_loss / batch_count
 
 
 def save_progress_to_json(progress_file, epoch, train_loss, val_loss, kidney_dice, tumor_dice, learning_rate):
-    """Save training progress to JSON file"""
+    """
+    Save training progress to JSON file for tracking and visualization.
     
-    # Load existing progress if file exists
+    Args:
+        progress_file (str): Path to the JSON file to save progress.
+        epoch (int): Current epoch number.
+        train_loss (float): Training loss for the current epoch.
+        val_loss (float): Validation loss for the current epoch.
+        kidney_dice (float): Kidney DICE score for the current epoch.
+        tumor_dice (float): Tumor DICE score for the current epoch.
+        learning_rate (float): Current learning rate.
+    
+    Returns:
+        None
+    """
+    
+    # Load existing progress data if file already exists
     if os.path.exists(progress_file):
         with open(progress_file, 'r') as f:
             progress = json.load(f)
     else:
+        # Initialize new progress tracking structure
         progress = {
             "epochs": [],
             "train_losses": [],
@@ -158,7 +210,7 @@ def save_progress_to_json(progress_file, epoch, train_loss, val_loss, kidney_dic
             "learning_rates": []
         }
     
-    # Append new data
+    # Append current epoch's metrics to the tracking lists
     progress["epochs"].append(epoch)
     progress["train_losses"].append(train_loss)
     progress["val_losses"].append(val_loss)
@@ -166,7 +218,7 @@ def save_progress_to_json(progress_file, epoch, train_loss, val_loss, kidney_dic
     progress["tumor_dice_scores"].append(tumor_dice)
     progress["learning_rates"].append(learning_rate)
     
-    # Save updated progress
+    # Save the updated progress data back to the JSON file
     with open(progress_file, 'w') as f:
         json.dump(progress, f, indent=2)
 
@@ -194,8 +246,6 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
     """
 
     accelerator = Accelerator(mixed_precision="fp16") # Use mixed precision for faster training
-
-    dice_metric = DiceMetric(include_background=True, reduction="mean")
     
     # Initialize wandb if requested
     if use_wandb:
@@ -256,7 +306,7 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
 
         # Validation
         val_loss, kidney_dice, tumor_dice = validate(
-            model, val_loader, loss_fn, dice_metric, device, type=type
+            model, val_loader, loss_fn, device, type=type
         )
         val_losses.append(val_loss)
         kidney_dices.append(kidney_dice)

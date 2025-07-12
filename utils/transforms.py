@@ -1,48 +1,64 @@
 from monai.transforms import (
     MapTransform, ResizeD, Compose, LoadImaged, EnsureChannelFirstd, Spacingd, Orientationd,
-    ScaleIntensityRanged, ToTensord, CenterSpatialCropd, EnsureTyped,
+    ScaleIntensityRanged, ToTensord, EnsureTyped,
     RandFlipd, RandRotate90d, RandScaleIntensityd, RandAdjustContrastd,
     RandGaussianNoised, RandShiftIntensityd, SpatialPadd, CropForegroundd, RandRotated,
-    RandSpatialCropd, Resized, OneOf, RandCropByLabelClassesd, Rand3DElasticd
+    RandCropByLabelClassesd, Rand3DElasticd
 )
 import numpy as np
 import torch
 
 class LoadNumpy(MapTransform):
+    """
+    Custom MONAI transform to load numpy arrays from file paths.
+    
+    Args:
+        keys (list): List of keys in the data dictionary to process.
+    """
     def __init__(self, keys):
         super().__init__(keys)
 
     def __call__(self, data):
+        # Create a copy of the input data dictionary
         d = dict(data)
         for key in self.keys:
+            # Load numpy array from file path
             array = np.load(d[key])
 
-            # ensure channel first dimension
+            # Ensure channel-first dimension for 2D arrays
             if array.ndim == 2:  # (H, W) → (1, H, W) 
                 array = np.expand_dims(array, axis=0)
             d[key] = array
         return d
 
 class PrepareSliceData(MapTransform):
+    """
+    Custom MONAI transform to prepare slice data for 2D processing.
+    Ensures correct data types and channel dimensions for image slices.
+    
+    Args:
+        keys (list): List of keys in the data dictionary to process.
+    """
     def __init__(self, keys):
         super().__init__(keys)
 
     def __call__(self, data):
+        # Create a copy of the input data dictionary
         d = dict(data)
         for key in self.keys:
             array = d[key]
             
-            # Ensure we have a numpy array
+            # Convert to numpy array if not already
             if not isinstance(array, np.ndarray):
                 array = np.array(array)
             
-            # Ensure channel first dimension
+            # Ensure channel-first dimension for different input formats
             if array.ndim == 2:  # (H, W) → (1, H, W) 
                 array = np.expand_dims(array, axis=0)
             elif array.ndim == 3 and array.shape[0] != 1:  # (H, W, C) → (C, H, W)
                 array = np.transpose(array, (2, 0, 1))
             
-            # Ensure float32 dtype for images, keep original for labels
+            # Set appropriate data type - float32 for images, preserve original for labels
             if key == "image":
                 array = array.astype(np.float32)
             
@@ -107,20 +123,31 @@ def get_2D_transforms():
     return augment_transforms, no_aug_transforms
 
 def get_2D_test_transforms():
+    """
+    Get transform pipeline for 2D test data preprocessing.
+    
+    Returns:
+        Compose: MONAI transform pipeline for test data without augmentation.
+                Includes data loading, resizing, intensity scaling, and tensor conversion.
+    """
 
     test_transforms = Compose([
-        PrepareSliceData(keys=["image"]),  # Add channel dimension
+        # Prepare slice data by adding channel dimension and ensuring correct format
+        PrepareSliceData(keys=["image"]),  
+        # Resize images to standard size for model input
         ResizeD(keys=["image"], spatial_size=(512, 512), mode=["bilinear"]),
+        # Scale CT intensity values to normalized range
         ScaleIntensityRanged(
             keys=["image"],
-            a_min=-200, a_max=500,  # Clamp CT values
-            b_min=-1.0, b_max=1.0,
+            a_min=-200, a_max=500,  # Clamp CT Hounsfield unit values
+            b_min=-1.0, b_max=1.0,   # Normalize to [-1, 1] range
             clip=True,
         ),
 
-        # Convert to tensor
+        # Ensure correct data type for PyTorch
         EnsureTyped(keys=["image"], dtype=torch.float32),
-        ToTensord(keys=["image"])            # Convert to PyTorch tensors
+        # Convert numpy arrays to PyTorch tensors
+        ToTensord(keys=["image"])
     ])
 
     return test_transforms
@@ -128,9 +155,16 @@ def get_2D_test_transforms():
 
 def get_3D_transforms():
     """
-    Preprocessing pipeline for KiTS19 with augmentation and validation
+    Get transform pipelines for 3D data preprocessing and augmentation.
+    
+    Returns:
+        tuple: (train_transforms, val_transforms) where:
+            - train_transforms: MONAI pipeline with augmentation for training
+            - val_transforms: MONAI pipeline without augmentation for validation
+            
+    Both pipelines include data loading, spacing normalization, orientation standardization,
+    intensity scaling, foreground cropping, and tensor conversion optimized for 3D U-Net.
     """
-    print("Version 2 of 3D transforms")
 
     # Training transforms with enhanced augmentation
     train_transforms = Compose([
@@ -172,12 +206,12 @@ def get_3D_transforms():
             mode="constant"
         ),
         
-        # Direct Tumor-biased sampling
+        # Tumor-biased sampling
         RandCropByLabelClassesd(
             keys=["image", "label"],
             label_key="label",
-            spatial_size=(80, 160, 160),  # Default size
-            ratios=[0.3, 3, 7],  # No background, kidney=30%, tumor=70%
+            spatial_size=(80, 160, 160),  # Common size
+            ratios=[0.3, 3, 7],  # Weight background 0.3, tumor 3, kidney 7
             num_classes=3,
             num_samples=1,
             warn=False
@@ -190,8 +224,8 @@ def get_3D_transforms():
         
         RandRotated(
             keys=["image", "label"],
-            range_x=15.0,
-            range_y=15.0,
+            range_x=15.0, # up to 15 degrees rotation
+            range_y=15.0, 
             range_z=15.0,
             prob=0.5,
             mode=("bilinear", "nearest"),
@@ -200,9 +234,9 @@ def get_3D_transforms():
         ),
 
         # Intensity augmentations
-        RandScaleIntensityd(keys=["image"], factors=0.2, prob=0.5),  # Increased range
+        RandScaleIntensityd(keys=["image"], factors=0.2, prob=0.5),
         RandAdjustContrastd(keys=["image"], prob=0.5),
-        RandGaussianNoised(keys=["image"], prob=0.5, std=0.005),  # Reduced noise
+        RandGaussianNoised(keys=["image"], prob=0.5, std=0.005),
         RandShiftIntensityd(keys=["image"], offsets=0.1, prob=0.5),
         
         # Elastic deformation

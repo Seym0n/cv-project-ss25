@@ -1,16 +1,14 @@
 import torch
 import monai
 from monai.utils import set_determinism
-from monai.networks.nets import UNETR
 from monai.losses import DiceFocalLoss
-from monai.data import Dataset, DataLoader, pad_list_data_collate
 from monai.networks.nets import UNet
 from monai.networks.layers import Norm
 
 from sklearn.model_selection import train_test_split
 
-from utils.data_load import get_3D_dataset, get_data_list, get_2D_data, get_2D_datasets
-from utils.transforms import get_2D_transforms, get_3D_transforms
+from utils.data_load import get_3D_dataset, get_data_list
+from utils.transforms import get_3D_transforms
 from utils.train_utils import train_kits19_model
 
 
@@ -24,13 +22,14 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}", flush=True)
 
+    # Configuration / Hyperparameters
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"  # Update this path
     BATCH_SIZE = 4
     NUM_EPOCHS = 800
     NUM_WORKERS = 4
     LR=3e-4  # Learning rate for AdamW optimizer
 
-    # load data
+    # Load Data
     all_cases = get_data_list(DATA_ROOT)
     print(f"   Found {len(all_cases)} cases", flush=True)
 
@@ -60,6 +59,8 @@ if __name__ == "__main__":
         kernel_size=3,
         up_kernel_size=3  # For transposed convolutions
     )
+
+    # Dice and Focal Loss
 
     loss_fn = DiceFocalLoss(
         include_background=True,
