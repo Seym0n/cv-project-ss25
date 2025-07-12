@@ -275,7 +275,6 @@ def train_kits19_model(model, loss_fn, optimizer, train_loader, val_loader, devi
         model, optimizer, train_loader, val_loader
     )
 
-    print('Training with adapted WarmupCosineSchedule v2')
     scheduler = WarmupCosineSchedule(
         optimizer,
         warmup_steps=scheduler_warmup_steps,
