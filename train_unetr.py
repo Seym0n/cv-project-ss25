@@ -2,7 +2,7 @@ import torch
 import monai
 from monai.utils import set_determinism
 from monai.networks.nets import UNETR
-from monai.losses import DiceFocalLoss
+from monai.losses import DiceCELoss
 
 from sklearn.model_selection import train_test_split
 
@@ -23,9 +23,9 @@ if __name__ == "__main__":
 
     DATA_ROOT = "/scratch/cv-course2025/lschind5/kits19/data"
     BATCH_SIZE = 8
-    NUM_EPOCHS = 100
+    NUM_EPOCHS = 25
     NUM_WORKERS = 4
-    LR = 0.00005
+    LR = 3e-5
 
     # load data
     all_cases = get_data_list(DATA_ROOT)
@@ -53,18 +53,20 @@ if __name__ == "__main__":
         in_channels=1,
         out_channels=3, # background, kidney, tumor
         img_size=512,
-        feature_size=32,
+        feature_size=16,
         norm_name='batch',
-        spatial_dims=2).to(device)
+        spatial_dims=2,
+        dropout_rate=0.1, # help with overfitting
+        ).to(device)
 
-    loss_fn = DiceFocalLoss(
+    loss_fn_instance = DiceCELoss(
             to_onehot_y=True,  # convert target to one-hot format
             softmax=True,       # apply softmax to model outputs
-            weight=[0.3, 1, 6]  # Adjust weights for background, kidney, tumor
+            weight=torch.tensor([0.3, 1, 3])  # Adjust weights for background, kidney, tumor
         ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
 
     train_losses, val_losses, kidney_dices, tumor_dices = train_kits19_model(
-        model, loss_fn, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path="best0307.pth",
+        model, loss_fn_instance, optimizer, train_loader, val_loader, device, NUM_EPOCHS, save_path="best0307.pth",
         type="2d-vit", use_wandb=False, scheduler_warmup_steps= max(3, int(0.1 * NUM_EPOCHS)), scheduler_cycles=0.5
         )

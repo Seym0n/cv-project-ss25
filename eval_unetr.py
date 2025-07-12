@@ -86,7 +86,12 @@ if __name__ == "__main__":
     metrics_standard, val_with_scores = evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=False, exclude_background_slices=False)
 
     # save as .pt
-    torch.save(val_with_scores, "validation_predictions.pt")
+    predictions_only = {k: {"case_id": v["case_id"], 
+                            "predictions": v["predictions"],
+                            "kidney_dice": v["kidney_dice"],
+                            "tumor_dice": v["tumor_dice"]
+                        } for k, v in val_data.items()}
+    torch.save(predictions_only, "validation_predictions.pt")
 
     # save in .csv
     results = [metrics_standard, metrics_standard_nobg, metrics_standard_nofpbg, metrics_slices, metrics_slices_nofp, metrics_slices_nobg, metrics_slices_nofpbg]
