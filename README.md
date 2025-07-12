@@ -143,7 +143,7 @@ python eval_unetr.py
 - `unetr_hyperparameter_search.py`: Automated hyperparameter tuning for U-NETR
 
 ### Checkpoints
-- `checkpoints/3d-unet`: Contains the model checkpoint file (`kits19-model-3d-unet.pth`, used in eval_unet.ipynb), the training progress in JSON throughout all epochs, and the model checkpoint from accelerator library
+- `checkpoints/3d-unet`: Contains the model checkpoint file (`kits19-model-3d-unet.pth`, used in eval_unet.ipynb), the training progress in JSON throughout all epochs, the model checkpoint from accelerator library and the training log from wandb in `wandb/output.log.txt`
 
 ## Note on Hyperparameter search
 
