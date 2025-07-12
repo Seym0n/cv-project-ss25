@@ -87,7 +87,7 @@ if __name__ == "__main__":
         type="3d-unet",
         scheduler_cycles=3.5,
         scheduler_warmup_steps=25,
-        use_wandb=True,
+        use_wandb=False,
         wandb_project="kits19-segmentation-3d-unet",
         wandb_config={
             "batch_size": BATCH_SIZE,
