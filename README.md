@@ -142,6 +142,9 @@ python eval_unetr.py
 ### Hyperparameter Optimization
 - `unetr_hyperparameter_search.py`: Automated hyperparameter tuning for U-NETR
 
+### Checkpoints
+- `checkpoints/3d-unet`: Contains the model checkpoint file (`kits19-model-3d-unet.pth`, used in eval_unet.ipynb), the training progress in JSON throughout all epochs, and the model checkpoint from accelerator library
+
 ## Note on Hyperparameter search
 
 While the exploratory hyperparameter search for Unetr was conducted via unetr_hyperparameter_search.py, the hyperparameter search for 3D residual U-Net was conducted via different iterations of the script using different branches as part of this GitHub repository.
