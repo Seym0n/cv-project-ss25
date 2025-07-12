@@ -171,6 +171,10 @@ Otherwise, the training is monitored and outputted to the file `training_progres
 
 This project was developed as part of a Computer Vision course project at the University of Cologne.
 
+## Testing
+
+The script(s) has been successfully tested to run in the Conda environment with the requirements (`requirements_full.txt`).
+
 ## References
 
 For the training, we use the models (for both 2D and 3D models) from MONAI v1.5.0 (https://github.com/Project-MONAI/MONAI) and the dataset from https://github.com/neheller/kits19 (see guide above).
