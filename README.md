@@ -60,7 +60,8 @@ pip install -r requirements_minimal.txt
 pip install -r requirements_full.txt
 ```
 
-Note: Installing requirements other than this leads to problem fetching the dataset! Sometime, Python package may still be missing due to MONAI, therefore use `requirements_full.txt` or visit https://docs.monai.io/en/latest/installation.html#installing-the-recommended-dependencies
+> [!NOTE]
+> Installing requirements other than this leads to problem fetching the dataset! Sometime, Python package may still be missing due to MONAI, therefore use `requirements_full.txt` or visit https://docs.monai.io/en/latest/installation.html#installing-the-recommended-dependencies
 
 3. **Register kernel:**
 
@@ -85,7 +86,8 @@ cd kits19
 python -m starter_code.get_imaging
 ```
 
-Note: Run this script in the conda environment `project_env`!
+> [!NOTE]
+> Run this script in the conda environment `project_env`!
 
 3. **Update data paths:**
    - Search for `kits19/data` references in the project files
@@ -104,7 +106,8 @@ python train_3d_unet.py
 
 ### Training the 2D U-NETR
 
-Note: Please run `prepare_2D_dataset.py` before!
+> [!NOTE]
+> Please run `prepare_2D_dataset.py` before!
 
 ```bash
 python train_unetr.py
@@ -118,6 +121,9 @@ jupyter notebook eval_unet.ipynb
 # Evaluate 2D U-NETR
 python eval_unetr.py
 ```
+
+> [!NOTE]
+> We run the script(s) on RAMSES. Tested in Jupyter Browser, and ran for long-process (training) as a daemon process using tmux.
 
 ## Project Structure
 
@@ -160,7 +166,8 @@ To enable monitoring, install
 pip install wandb
 ```
 
-Note: `wandb` is already part of requirements_full.txt
+> [!NOTE]
+> `wandb` is already part of requirements_full.txt
 
 And login to wandb. The instruction to log in is detailed in Weights & Biases dashboard.
 
