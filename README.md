@@ -177,6 +177,13 @@ And set the flag `use_wandb` to `True` in `train_kits19_model` methods to activa
 
 Otherwise, the training is monitored and outputted to the file `training_progress.json`.
 
+## Interactive Result
+
+This is a segmentation of the kidney and tumor from the sagittal plane, predicted using 3D U-Net via sliding window inference.
+
+![case_00199_sagittal_slices (2)](https://github.com/user-attachments/assets/26e7f114-9dc4-447a-8c4e-a75527752702)
+
+
 ## Contributing
 
 This project was developed as part of a Computer Vision course project at the University of Cologne.
