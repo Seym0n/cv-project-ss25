@@ -167,7 +167,7 @@ pip install wandb
 ```
 
 > [!NOTE]
-> `wandb` is already part of requirements_full.txt
+> `wandb` is already part of requirements_full.txt and requirements_minimal.txt
 
 And login to wandb. The instruction to log in is detailed in Weights & Biases dashboard.
 
