@@ -157,7 +157,7 @@ While the exploratory hyperparameter search for Unetr was conducted via unetr_hy
 
 ## Monitoring
 
-For 3D Residual U-Net, the model was monitored via Weights and Biases (https://wandb.ai/).
+For 3D Residual U-Net, the model was trained via Weights and Biases (https://wandb.ai/).
 This is optional but nice-to-have.
 
 To enable monitoring, install
