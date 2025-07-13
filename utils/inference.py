@@ -270,7 +270,7 @@ def evaluate_predictions(val_data, exclude_false_positives=False, slice_wise=Fal
 
 
 
-def post_process_prediction(prediction, min_kidney_size=1000):
+def post_process_prediction(prediction, min_kidney_size=5000):
     """
     Post-process the prediction mask by removing small connected components
     for the kidney class (class 1) that are too small to be (part of) kidneys.
